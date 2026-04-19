@@ -10,6 +10,107 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id            BigInt   @id @default(autoincrement())
+  email         String   @unique
+  password_hash String
+  display_name  String?
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+
+  oauth_credentials OauthCredential[]
+  packages          Package[]
+  exclusions        ExcludedTrackingNumber[]
+
+  @@map("users")
+}
+
+model OauthCredential {
+  id              BigInt    @id @default(autoincrement())
+  user_id         BigInt
+  provider        String
+  access_token    String
+  refresh_token   String
+  expires_at      DateTime
+  scope           String?
+  connected_email String?
+  last_sync_at    DateTime?
+  created_at      DateTime  @default(now())
+  updated_at      DateTime  @updatedAt
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, provider])
+  @@map("oauth_credentials")
+}
+
+model Carrier {
+  code         String   @id
+  display_name String
+  active       Boolean  @default(true)
+  created_at   DateTime @default(now())
+  updated_at   DateTime @updatedAt
+
+  packages   Package[]
+  exclusions ExcludedTrackingNumber[]
+
+  @@map("carriers")
+}
+
+model Package {
+  id              BigInt    @id @default(autoincrement())
+  user_id         BigInt
+  carrier         String
+  tracking_number String
+  nickname        String?
+  hidden          Boolean   @default(false)
+  source          String
+  source_email_id String?
+  last_checked_at DateTime?
+  created_at      DateTime  @default(now())
+  updated_at      DateTime  @updatedAt
+
+  user            User            @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  carrier_ref     Carrier         @relation(fields: [carrier], references: [code])
+  tracking_events TrackingEvent[]
+
+  @@unique([user_id, tracking_number])
+  @@map("packages")
+}
+
+model TrackingEvent {
+  id                 BigInt   @id @default(autoincrement())
+  package_id         BigInt
+  event_time         DateTime
+  status             String
+  carrier_raw_status String?
+  description        String?
+  location           String?
+  created_at         DateTime @default(now())
+
+  package Package @relation(fields: [package_id], references: [id], onDelete: Cascade)
+
+  @@unique([package_id, event_time, carrier_raw_status])
+  @@index([package_id, event_time(sort: Desc)])
+  @@map("tracking_events")
+}
+
+model ExcludedTrackingNumber {
+  id              BigInt   @id @default(autoincrement())
+  user_id         BigInt
+  tracking_number String
+  carrier         String?
+  nickname        String?
+  excluded_at     DateTime @default(now())
+
+  user        User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  carrier_ref Carrier? @relation(fields: [carrier], references: [code])
+
+  @@unique([user_id, tracking_number])
+  @@map("excluded_tracking_numbers")
 }
