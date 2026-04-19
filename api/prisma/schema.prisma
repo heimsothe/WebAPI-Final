@@ -9,10 +9,13 @@ generator client {
   output   = "../generated/prisma"
 }
 
+// directUrl was removed: when prisma.config.ts is present, the Prisma
+// CLI reads its migration URL from the config file's datasource.url
+// (pointed at DIRECT_URL there). This block is read only by the Prisma
+// Client at runtime, which uses the pooled DATABASE_URL.
 datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 model User {
