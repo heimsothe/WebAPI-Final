@@ -12,13 +12,11 @@
   "keywords": [],
   "author": "Elijah Heimsoth",
   "license": "ISC",
-  "prisma": {
-    "seed": "node prisma/seed.js"
-  },
   "dependencies": {
     "@prisma/client": "^6.19.3"
   },
   "devDependencies": {
+    "dotenv": "^17.4.2",
     "prisma": "^6.19.3"
   }
 }
