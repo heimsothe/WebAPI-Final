@@ -14,5 +14,11 @@
   "license": "ISC",
   "prisma": {
     "seed": "node prisma/seed.js"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.19.3"
+  },
+  "devDependencies": {
+    "prisma": "^6.19.3"
   }
 }
