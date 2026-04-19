@@ -4,9 +4,14 @@
 // Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
 // Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
 
+// Using the legacy prisma-client-js generator, which outputs CommonJS
+// JS to node_modules/@prisma/client (imported via require('@prisma/client')).
+// The newer prisma-client generator outputs ESM TypeScript to a custom
+// directory, which requires a TypeScript + ESM project shape. This project
+// is plain JS + CommonJS. See docs/superpowers/plans/2026-04-18-api-data-
+// layer-implementation.md section "Deviations from plan" for full context.
 generator client {
-  provider = "prisma-client"
-  output   = "../generated/prisma"
+  provider = "prisma-client-js"
 }
 
 // directUrl was removed: when prisma.config.ts is present, the Prisma
