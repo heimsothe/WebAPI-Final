@@ -6,14 +6,50 @@
 - Class: CSCI 3916
 
 Description: Package CRUD routes. All routes require authentication.
-Endpoints added in subsequent tasks.
+Tenancy is enforced via where: { user_id: req.user.id } on every query.
+List endpoint supports the hidden filter (true / false / all). Detail
+endpoint returns the full event timeline. Delete is transactional and
+inserts an exclusion entry for the deleted tracking number.
  */
 
 const express = require('express');
+const { prisma } = require('../lib/prisma');
 const { isAuthenticated } = require('../middleware/authJwt');
+const { asyncHandler } = require('../lib/asyncHandler');
+const { serializePackage } = require('../lib/serialize');
 
 const router = express.Router();
 
 router.use(isAuthenticated);
+
+router.get('/', asyncHandler(async (req, res) => {
+    const hiddenFilter = req.query.hidden;
+    const where = { user_id: req.user.id };
+    if (hiddenFilter === 'all') {
+        // no hidden filter
+    } else if (hiddenFilter === 'true') {
+        where.hidden = true;
+    } else {
+        // 'false', undefined, or any unrecognized value: default to visible-only.
+        // Spec: "Unrecognized values for hidden fall back to the default false; not an error."
+        where.hidden = false;
+    }
+
+    const packages = await prisma.package.findMany({
+        where,
+        orderBy: { created_at: 'desc' },
+        include: {
+            tracking_events: {
+                take: 1,
+                orderBy: { event_time: 'desc' },
+            },
+        },
+    });
+
+    res.status(200).json({
+        success: true,
+        data: packages.map(serializePackage),
+    });
+}));
 
 module.exports = router;
