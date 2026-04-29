@@ -44,4 +44,29 @@ describe('lib/envCheck', () => {
         process.env.JWT_SECRET = 'short';
         (() => envCheck()).should.throw(/JWT_SECRET is too short/);
     });
+
+    it('throws if GOOGLE_CLIENT_ID is missing', () => {
+        delete process.env.GOOGLE_CLIENT_ID;
+        (() => envCheck()).should.throw(/GOOGLE_CLIENT_ID/);
+    });
+
+    it('throws if GOOGLE_CLIENT_SECRET is missing', () => {
+        delete process.env.GOOGLE_CLIENT_SECRET;
+        (() => envCheck()).should.throw(/GOOGLE_CLIENT_SECRET/);
+    });
+
+    it('throws if GOOGLE_REDIRECT_URI is missing', () => {
+        delete process.env.GOOGLE_REDIRECT_URI;
+        (() => envCheck()).should.throw(/GOOGLE_REDIRECT_URI/);
+    });
+
+    it('throws if FRONTEND_URL is missing', () => {
+        delete process.env.FRONTEND_URL;
+        (() => envCheck()).should.throw(/FRONTEND_URL/);
+    });
+
+    it('throws if TOKEN_ENCRYPTION_KEY is missing', () => {
+        delete process.env.TOKEN_ENCRYPTION_KEY;
+        (() => envCheck()).should.throw(/TOKEN_ENCRYPTION_KEY/);
+    });
 });

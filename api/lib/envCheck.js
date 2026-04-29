@@ -12,7 +12,12 @@ attacker forge tokens at will, so this check is load-bearing.
  */
 
 function envCheck() {
-    const required = ['DATABASE_URL', 'DIRECT_URL', 'JWT_SECRET'];
+    const required = [
+        'DATABASE_URL', 'DIRECT_URL', 'JWT_SECRET',
+        'GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET',
+        'GOOGLE_REDIRECT_URI', 'FRONTEND_URL',
+        'TOKEN_ENCRYPTION_KEY',
+    ];
     for (const name of required) {
         if (!process.env[name]) {
             throw new Error(`Missing required env var: ${name}`);
