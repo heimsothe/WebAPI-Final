@@ -51,4 +51,24 @@ router.post('/signup',
     })
 );
 
+const GENERIC_SIGNIN_FAIL = new HttpError(401, 'INVALID_CREDENTIALS', 'Invalid email or password.');
+
+router.post('/signin',
+    validateBody(signinSchema),
+    asyncHandler(async (req, res) => {
+        const { email, password } = req.body;
+        const user = await prisma.user.findUnique({ where: { email } });
+        if (!user) throw GENERIC_SIGNIN_FAIL;
+
+        const ok = await bcrypt.compare(password, user.password_hash);
+        if (!ok) throw GENERIC_SIGNIN_FAIL;
+
+        const token = signAccessToken(user);
+        res.status(200).json({
+            success: true,
+            data: { user: serializeUser(user), token },
+        });
+    })
+);
+
 module.exports = router;

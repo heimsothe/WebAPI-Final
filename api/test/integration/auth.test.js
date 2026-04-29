@@ -19,6 +19,7 @@ const jwt = require('jsonwebtoken');
 
 const app = require('../../server');
 const { prisma } = require('../setup');
+const { seedUser, SEEDED_PASSWORD } = require('../helpers/db');
 
 describe('integration: POST /auth/signup', () => {
     it('returns 201 with user and token for a valid body', async () => {
@@ -79,5 +80,38 @@ describe('integration: POST /auth/signup', () => {
         const user = await prisma.user.findUnique({ where: { email: 'alice@example.com' } });
         user.password_hash.should.match(/^\$2[ab]\$12\$/);
         user.password_hash.should.not.equal('plaintext-pw');
+    });
+});
+
+describe('integration: POST /auth/signin', () => {
+    it('returns 200 with user and token for correct credentials', async () => {
+        const user = await seedUser({ email: 'alice@example.com' });
+        const res = await chai.request(app).post('/auth/signin').send({
+            email: 'alice@example.com',
+            password: SEEDED_PASSWORD,
+        });
+        res.should.have.status(200);
+        res.body.success.should.equal(true);
+        res.body.data.user.email.should.equal('alice@example.com');
+        res.body.data.token.should.be.a('string');
+    });
+
+    it('returns 401 INVALID_CREDENTIALS for a wrong password', async () => {
+        await seedUser({ email: 'alice@example.com' });
+        const res = await chai.request(app).post('/auth/signin').send({
+            email: 'alice@example.com',
+            password: 'wrong-password',
+        });
+        res.should.have.status(401);
+        res.body.error.code.should.equal('INVALID_CREDENTIALS');
+    });
+
+    it('returns 401 INVALID_CREDENTIALS for a nonexistent email (same code as wrong password)', async () => {
+        const res = await chai.request(app).post('/auth/signin').send({
+            email: 'nobody@example.com',
+            password: 'irrelevant',
+        });
+        res.should.have.status(401);
+        res.body.error.code.should.equal('INVALID_CREDENTIALS');
     });
 });
