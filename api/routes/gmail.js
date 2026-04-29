@@ -23,6 +23,7 @@ const { validateBody } = require('../middleware/validateBody');
 const { buildOauthClient, SCOPES } = require('../lib/googleOauth');
 const { decryptToken } = require('../lib/tokenCrypto');
 const { parseId } = require('../lib/parseId');
+const { syncUserConnections } = require('../lib/gmail/syncUserConnections');
 
 const router = express.Router();
 router.use(isAuthenticated);
@@ -90,6 +91,32 @@ router.get('/status', asyncHandler(async (req, res) => {
             })),
         },
     });
+}));
+
+const syncBodySchema = z.object({
+    connection_id: z.string().regex(/^\d+$/).optional(),
+}).optional().default({});
+
+router.post('/sync', validateBody(syncBodySchema), asyncHandler(async (req, res) => {
+    const connectionId = req.body.connection_id ? BigInt(req.body.connection_id) : undefined;
+
+    if (connectionId) {
+        const owns = await prisma.oauthCredential.findFirst({
+            where: { id: connectionId, user_id: req.user.id, provider: 'google' },
+            select: { id: true },
+        });
+        if (!owns) {
+            throw new HttpError(404, 'NOT_FOUND', 'Connection not found.');
+        }
+    }
+
+    const result = await syncUserConnections(req.user.id, { connectionId });
+    if (result.syncs.length === 0) {
+        throw new HttpError(409, 'GMAIL_NOT_CONNECTED',
+            'No Gmail connection found. Connect Gmail before syncing.');
+    }
+
+    res.status(200).json({ success: true, data: result });
 }));
 
 router.delete('/connection/:id', asyncHandler(async (req, res) => {
