@@ -19,7 +19,7 @@ const jwt = require('jsonwebtoken');
 
 const app = require('../../server');
 const { prisma } = require('../setup');
-const { seedUser, SEEDED_PASSWORD } = require('../helpers/db');
+const { seedUser, SEEDED_PASSWORD, tokenFor, authHeader } = require('../helpers/db');
 
 describe('integration: POST /auth/signup', () => {
     it('returns 201 with user and token for a valid body', async () => {
@@ -113,5 +113,63 @@ describe('integration: POST /auth/signin', () => {
         });
         res.should.have.status(401);
         res.body.error.code.should.equal('INVALID_CREDENTIALS');
+    });
+});
+
+describe('integration: isAuthenticated middleware (via GET /api/packages)', () => {
+    it('returns 401 UNAUTHENTICATED when no Authorization header', async () => {
+        const res = await chai.request(app).get('/api/packages');
+        res.should.have.status(401);
+        res.body.error.code.should.equal('UNAUTHENTICATED');
+    });
+
+    it('returns 401 UNAUTHENTICATED when Authorization header lacks Bearer prefix', async () => {
+        const res = await chai.request(app).get('/api/packages').set('Authorization', 'JWT fake');
+        res.should.have.status(401);
+    });
+
+    it('returns 401 UNAUTHENTICATED when token is signed with the wrong secret', async () => {
+        // Seed a real user and sign with that user's id but the WRONG secret.
+        // This isolates the failure path to "bad signature" - if the user did
+        // not exist, the test would also pass via "user not found" and we
+        // could not tell which path fired.
+        const user = await seedUser();
+        const wrong = jwt.sign(
+            { sub: user.id.toString(), email: user.email },
+            'wrong-secret-32-bytes-padding-padding',
+            { algorithm: 'HS256', expiresIn: '7d' }
+        );
+        const res = await chai.request(app).get('/api/packages').set('Authorization', `Bearer ${wrong}`);
+        res.should.have.status(401);
+    });
+
+    it('returns 401 UNAUTHENTICATED for an expired token', async () => {
+        const user = await seedUser();
+        const expired = jwt.sign(
+            { sub: user.id.toString(), email: user.email },
+            process.env.JWT_SECRET,
+            { algorithm: 'HS256', expiresIn: '-1s' }
+        );
+        const res = await chai.request(app).get('/api/packages').set('Authorization', `Bearer ${expired}`);
+        res.should.have.status(401);
+    });
+
+    it('returns 401 UNAUTHENTICATED for a token whose user no longer exists', async () => {
+        const user = await seedUser();
+        const token = tokenFor(user);
+        await prisma.user.delete({ where: { id: user.id } });
+        const res = await chai.request(app).get('/api/packages').set(authHeader(token));
+        res.should.have.status(401);
+    });
+
+    it('does not 401 when the token is valid', async () => {
+        // Auth middleware passes; the request falls through to whatever comes
+        // next. Before Task 24 that's a 404 from no matching handler; after
+        // Task 24 it's a 200 from the GET handler. Either is fine for this
+        // test - we only care that the auth middleware itself accepted us.
+        const user = await seedUser();
+        const token = tokenFor(user);
+        const res = await chai.request(app).get('/api/packages').set(authHeader(token));
+        res.status.should.not.equal(401);
     });
 });

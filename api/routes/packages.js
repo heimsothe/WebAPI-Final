@@ -5,10 +5,15 @@
 - Assignment: WebAPI-FinalProject
 - Class: CSCI 3916
 
-Description: Package CRUD routes. Endpoints added in subsequent tasks.
+Description: Package CRUD routes. All routes require authentication.
+Endpoints added in subsequent tasks.
  */
 
 const express = require('express');
+const { isAuthenticated } = require('../middleware/authJwt');
+
 const router = express.Router();
+
+router.use(isAuthenticated);
 
 module.exports = router;
