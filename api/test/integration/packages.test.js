@@ -232,3 +232,51 @@ describe('integration: PATCH /api/packages/:id', () => {
         res.should.have.status(404);
     });
 });
+
+describe('integration: DELETE /api/packages/:id', () => {
+    it('returns 204 and deletes the row', async () => {
+        const alice = await seedUser();
+        const pkg = await seedPackage(alice.id);
+        const res = await chai.request(app).delete(`/api/packages/${pkg.id}`).set(authHeader(tokenFor(alice)));
+        res.should.have.status(204);
+        const after = await prisma.package.findUnique({ where: { id: pkg.id } });
+        (after === null).should.equal(true);
+    });
+
+    it('cascades to tracking_events', async () => {
+        const alice = await seedUser();
+        const pkg = await seedPackage(alice.id);
+        await seedTrackingEvent(pkg.id);
+        await chai.request(app).delete(`/api/packages/${pkg.id}`).set(authHeader(tokenFor(alice)));
+        const events = await prisma.trackingEvent.findMany({ where: { package_id: pkg.id } });
+        events.should.have.lengthOf(0);
+    });
+
+    it('inserts an exclusion for the same (user, tracking_number, carrier, nickname)', async () => {
+        const alice = await seedUser();
+        const pkg = await seedPackage(alice.id, { tracking_number: 'GONE', carrier: 'UPS', nickname: 'bye' });
+        await chai.request(app).delete(`/api/packages/${pkg.id}`).set(authHeader(tokenFor(alice)));
+        const ex = await prisma.excludedTrackingNumber.findUnique({
+            where: { user_id_tracking_number: { user_id: alice.id, tracking_number: 'GONE' } },
+        });
+        ex.should.not.equal(null);
+        ex.carrier.should.equal('UPS');
+        ex.nickname.should.equal('bye');
+    });
+
+    it('returns 404 for someone else\'s package', async () => {
+        const alice = await seedUser({ email: 'alice@example.com' });
+        const bob = await seedUser({ email: 'bob@example.com' });
+        const pkg = await seedPackage(bob.id);
+        const res = await chai.request(app).delete(`/api/packages/${pkg.id}`).set(authHeader(tokenFor(alice)));
+        res.should.have.status(404);
+        const stillThere = await prisma.package.findUnique({ where: { id: pkg.id } });
+        stillThere.should.not.equal(null);
+    });
+
+    // No explicit rollback assertion test. Rationale: transactional
+    // rollback is Prisma + Postgres's documented contract, not our
+    // application's behavior. The "inserts an exclusion" test above
+    // proves both writes happen on success (the wiring is correct);
+    // the framework's rollback-on-error guarantee covers the rest.
+});

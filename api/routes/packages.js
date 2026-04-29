@@ -121,4 +121,35 @@ router.patch('/:id',
     })
 );
 
+router.delete('/:id', asyncHandler(async (req, res) => {
+    const id = parseId(req.params.id);
+
+    await prisma.$transaction(async (tx) => {
+        const pkg = await tx.package.findFirst({
+            where: { id, user_id: req.user.id },
+        });
+        if (!pkg) throw new HttpError(404, 'NOT_FOUND', 'Package not found.');
+
+        await tx.excludedTrackingNumber.upsert({
+            where: {
+                user_id_tracking_number: {
+                    user_id: req.user.id,
+                    tracking_number: pkg.tracking_number,
+                },
+            },
+            update: {},
+            create: {
+                user_id: req.user.id,
+                tracking_number: pkg.tracking_number,
+                carrier: pkg.carrier,
+                nickname: pkg.nickname,
+            },
+        });
+
+        await tx.package.delete({ where: { id: pkg.id } });
+    });
+
+    res.status(204).end();
+}));
+
 module.exports = router;
