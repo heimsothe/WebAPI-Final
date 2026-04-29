@@ -22,6 +22,7 @@ const authRouter = require('./routes/auth');
 const packagesRouter = require('./routes/packages');
 const exclusionsRouter = require('./routes/exclusions');
 const gmailRouter = require('./routes/gmail');
+const googleCallbackRouter = require('./routes/googleCallback');
 const { errorHandler } = require('./middleware/errorHandler');
 
 envCheck();
@@ -35,6 +36,7 @@ if (process.env.NODE_ENV !== 'test') {
 }
 
 app.use('/auth', authRouter);
+app.use('/auth/google', googleCallbackRouter);
 app.use('/api/packages', packagesRouter);
 app.use('/api/exclusions', exclusionsRouter);
 app.use('/api/gmail', gmailRouter);
