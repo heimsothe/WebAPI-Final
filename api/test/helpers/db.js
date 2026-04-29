@@ -14,6 +14,7 @@ authenticate without round-tripping through POST /auth/signin.
 const bcrypt = require('bcrypt');
 const { prisma } = require('../setup');
 const { signAccessToken } = require('../../lib/jwt');
+const { encryptToken } = require('../../lib/tokenCrypto');
 
 // Real bcrypt hash for the password "password123" at cost 12. Hardcoded
 // (not generated per test) so we don't pay 250ms per seedUser call.
@@ -58,6 +59,23 @@ async function seedExclusion(userId, overrides = {}) {
     return prisma.excludedTrackingNumber.create({ data: { ...defaults, ...overrides } });
 }
 
+async function seedConnection(userId, overrides = {}) {
+    const defaults = {
+        user_id: userId,
+        provider: 'google',
+        connected_email: 'test@gmail.com',
+        access_token: encryptToken('fake-access-token'),
+        refresh_token: encryptToken('fake-refresh-token'),
+        expires_at: new Date(Date.now() + 3600 * 1000),
+        scope: 'https://www.googleapis.com/auth/gmail.readonly',
+        last_sync_at: null,
+        needs_reauth: false,
+    };
+    return prisma.oauthCredential.create({
+        data: { ...defaults, ...overrides },
+    });
+}
+
 function tokenFor(user) {
     return signAccessToken(user);
 }
@@ -69,6 +87,6 @@ function authHeader(token) {
 module.exports = {
     prisma,
     SEEDED_PASSWORD,
-    seedUser, seedPackage, seedTrackingEvent, seedExclusion,
+    seedUser, seedPackage, seedTrackingEvent, seedExclusion, seedConnection,
     tokenFor, authHeader,
 };
