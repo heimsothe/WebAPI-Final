@@ -14,6 +14,8 @@ lookup data once, a beforeEach() to truncate user-scoped tables, and an
 afterEach() to restore sinon stubs.
  */
 
+process.env.NODE_ENV = 'test';
+
 // Load test environment BEFORE any other require() that might import Prisma.
 require('dotenv').config({ path: '.env.test' });
 
@@ -33,16 +35,16 @@ const chai = require('chai');
 const chaiHttp = require('chai-http');
 const chaiAsPromised = require('chai-as-promised');
 const sinon = require('sinon');
-const { PrismaClient } = require('@prisma/client');
 
 // Chai configuration, applied once per test run.
 chai.use(chaiHttp);
 chai.use(chaiAsPromised);
 chai.should();
 
-// Shared Prisma client. One instance per test run avoids opening many
-// connection pools against localhost Postgres.
-const prisma = new PrismaClient();
+// Shared Prisma client: import the lib singleton so tests and handlers
+// use the same instance. Phase 2 spec: "Module-level singleton.
+// Every other file imports { prisma } from here."
+const { prisma } = require('../lib/prisma');
 
 // Export for tests that need direct access (e.g., data-layer assertions).
 module.exports = { prisma };

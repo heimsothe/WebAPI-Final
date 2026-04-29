@@ -1,28 +1,30 @@
 /*
 - File: db.js
 - Author: Elijah Heimsoth
-- Date: 04/23/2026
+- Date: 04/23/2026 (extended 04/28/2026)
 - Assignment: WebAPI-FinalProject
 - Class: CSCI 3916
 
-Description: Test helpers for database setup. Provides a shared Prisma
-client and factory functions for inserting test rows with sensible
-defaults. Tests import from here to keep setup out of assertion code.
-Contains no assertions and no business logic.
+Description: Test helpers for database setup and request authentication.
+Provides factory functions for inserting test rows with sensible
+defaults, plus tokenFor / authHeader helpers so integration tests can
+authenticate without round-tripping through POST /auth/signin.
  */
 
+const bcrypt = require('bcrypt');
 const { prisma } = require('../setup');
+const { signAccessToken } = require('../../lib/jwt');
 
-// Placeholder bcrypt hash. Phase 1 data-layer tests do not verify password
-// correctness, so a fixed non-functional string is sufficient. When Phase 2
-// introduces the real auth flow, seedUser will be updated to call
-// bcrypt.hash() for tests that exercise the login path.
-const PLACEHOLDER_HASH = '$2b$12$placeholder.hash.value.phase1.only.not.real';
+// Real bcrypt hash for the password "password123" at cost 12. Hardcoded
+// (not generated per test) so we don't pay 250ms per seedUser call.
+// To regenerate: node -e "console.log(require('bcrypt').hashSync('password123', 12))"
+const SEEDED_PASSWORD = 'password123';
+const SEEDED_PASSWORD_HASH = bcrypt.hashSync(SEEDED_PASSWORD, 12);
 
 async function seedUser(overrides = {}) {
     const defaults = {
         email: 'test@example.com',
-        password_hash: PLACEHOLDER_HASH,
+        password_hash: SEEDED_PASSWORD_HASH,
         display_name: 'Test User',
     };
     return prisma.user.create({ data: { ...defaults, ...overrides } });
@@ -47,4 +49,26 @@ async function seedTrackingEvent(packageId, overrides = {}) {
     return prisma.trackingEvent.create({ data: { ...defaults, ...overrides } });
 }
 
-module.exports = { prisma, seedUser, seedPackage, seedTrackingEvent };
+async function seedExclusion(userId, overrides = {}) {
+    const defaults = {
+        user_id: userId,
+        tracking_number: '1Z999AA10123456784',
+        carrier: 'UPS',
+    };
+    return prisma.excludedTrackingNumber.create({ data: { ...defaults, ...overrides } });
+}
+
+function tokenFor(user) {
+    return signAccessToken(user);
+}
+
+function authHeader(token) {
+    return { Authorization: `Bearer ${token}` };
+}
+
+module.exports = {
+    prisma,
+    SEEDED_PASSWORD,
+    seedUser, seedPackage, seedTrackingEvent, seedExclusion,
+    tokenFor, authHeader,
+};
