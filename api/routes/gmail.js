@@ -66,4 +66,28 @@ router.post('/connect', validateBody(connectBodySchema), asyncHandler(async (req
     res.status(200).json({ success: true, data: { authorization_url } });
 }));
 
+router.get('/status', asyncHandler(async (req, res) => {
+    const connections = await prisma.oauthCredential.findMany({
+        where: { user_id: req.user.id, provider: 'google' },
+        orderBy: { created_at: 'asc' },
+        select: {
+            id: true, connected_email: true, last_sync_at: true,
+            needs_reauth: true, created_at: true,
+        },
+    });
+
+    res.status(200).json({
+        success: true,
+        data: {
+            connections: connections.map(c => ({
+                id: c.id.toString(),
+                connected_email: c.connected_email,
+                last_sync_at: c.last_sync_at,
+                needs_reauth: c.needs_reauth,
+                connected_at: c.created_at,
+            })),
+        },
+    });
+}));
+
 module.exports = router;

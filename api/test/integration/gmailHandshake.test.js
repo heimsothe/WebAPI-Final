@@ -218,3 +218,54 @@ describe('GET /auth/google/callback', () => {
         expect(res).to.redirectTo(/got=actual%40gmail\.com/);
     });
 });
+
+describe('GET /api/gmail/status', () => {
+
+    it('returns 401 without a token', async () => {
+        const res = await chai.request(app).get('/api/gmail/status');
+        expect(res).to.have.status(401);
+    });
+
+    it('returns an empty connections array when user has no Gmail credentials', async () => {
+        const user = await seedUser();
+        const res = await chai.request(app)
+            .get('/api/gmail/status')
+            .set(authHeader(tokenFor(user)));
+        expect(res).to.have.status(200);
+        expect(res.body.data.connections).to.deep.equal([]);
+    });
+
+    it('returns the caller\'s connections with the right shape', async () => {
+        const user = await seedUser();
+        const c1 = await seedConnection(user.id, { connected_email: 'one@gmail.com' });
+        const c2 = await seedConnection(user.id, {
+            connected_email: 'two@gmail.com',
+            needs_reauth: true,
+            last_sync_at: new Date('2026-04-25T12:00:00Z'),
+        });
+
+        const res = await chai.request(app)
+            .get('/api/gmail/status')
+            .set(authHeader(tokenFor(user)));
+
+        expect(res).to.have.status(200);
+        const conns = res.body.data.connections;
+        expect(conns).to.have.lengthOf(2);
+        const byEmail = Object.fromEntries(conns.map(c => [c.connected_email, c]));
+        expect(byEmail['one@gmail.com'].id).to.equal(c1.id.toString());
+        expect(byEmail['one@gmail.com'].needs_reauth).to.equal(false);
+        expect(byEmail['two@gmail.com'].needs_reauth).to.equal(true);
+        expect(byEmail['two@gmail.com'].last_sync_at).to.equal('2026-04-25T12:00:00.000Z');
+    });
+
+    it('does not leak other users\' connections', async () => {
+        const alice = await seedUser({ email: 'alice@example.com' });
+        const bob = await seedUser({ email: 'bob@example.com' });
+        await seedConnection(bob.id);
+
+        const res = await chai.request(app)
+            .get('/api/gmail/status')
+            .set(authHeader(tokenFor(alice)));
+        expect(res.body.data.connections).to.deep.equal([]);
+    });
+});
