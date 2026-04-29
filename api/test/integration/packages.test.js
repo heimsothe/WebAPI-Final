@@ -182,3 +182,53 @@ describe('integration: GET /api/packages/:id', () => {
         res.body.error.code.should.equal('NOT_FOUND');
     });
 });
+
+describe('integration: PATCH /api/packages/:id', () => {
+    it('updates hidden=true', async () => {
+        const alice = await seedUser();
+        const pkg = await seedPackage(alice.id);
+        const res = await chai.request(app).patch(`/api/packages/${pkg.id}`)
+            .set(authHeader(tokenFor(alice)))
+            .send({ hidden: true });
+        res.should.have.status(200);
+        res.body.data.hidden.should.equal(true);
+    });
+
+    it('updates only nickname when only nickname is provided', async () => {
+        const alice = await seedUser();
+        const pkg = await seedPackage(alice.id, { nickname: 'old' });
+        const res = await chai.request(app).patch(`/api/packages/${pkg.id}`)
+            .set(authHeader(tokenFor(alice)))
+            .send({ nickname: 'new' });
+        res.body.data.nickname.should.equal('new');
+        res.body.data.hidden.should.equal(false);
+    });
+
+    it('clears nickname when null is sent', async () => {
+        const alice = await seedUser();
+        const pkg = await seedPackage(alice.id, { nickname: 'old' });
+        const res = await chai.request(app).patch(`/api/packages/${pkg.id}`)
+            .set(authHeader(tokenFor(alice)))
+            .send({ nickname: null });
+        (res.body.data.nickname === null).should.equal(true);
+    });
+
+    it('returns 400 VALIDATION_FAILED on empty body', async () => {
+        const alice = await seedUser();
+        const pkg = await seedPackage(alice.id);
+        const res = await chai.request(app).patch(`/api/packages/${pkg.id}`)
+            .set(authHeader(tokenFor(alice)))
+            .send({});
+        res.should.have.status(400);
+    });
+
+    it('returns 404 for someone else\'s package', async () => {
+        const alice = await seedUser({ email: 'alice@example.com' });
+        const bob = await seedUser({ email: 'bob@example.com' });
+        const pkg = await seedPackage(bob.id);
+        const res = await chai.request(app).patch(`/api/packages/${pkg.id}`)
+            .set(authHeader(tokenFor(alice)))
+            .send({ hidden: true });
+        res.should.have.status(404);
+    });
+});

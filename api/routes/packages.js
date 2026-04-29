@@ -20,7 +20,7 @@ const { serializePackage, serializePackageDetail } = require('../lib/serialize')
 const { HttpError } = require('../lib/httpError');
 const { parseId } = require('../lib/parseId');
 const { validateBody } = require('../middleware/validateBody');
-const { createPackageSchema } = require('../validators/packageValidators');
+const { createPackageSchema, patchPackageSchema } = require('../validators/packageValidators');
 
 const router = express.Router();
 
@@ -102,5 +102,23 @@ router.get('/:id', asyncHandler(async (req, res) => {
 
     res.status(200).json({ success: true, data: serializePackageDetail(pkg) });
 }));
+
+router.patch('/:id',
+    validateBody(patchPackageSchema),
+    asyncHandler(async (req, res) => {
+        const id = parseId(req.params.id);
+        const result = await prisma.package.updateMany({
+            where: { id, user_id: req.user.id },
+            data: req.body,
+        });
+        if (result.count === 0) throw new HttpError(404, 'NOT_FOUND', 'Package not found.');
+
+        const pkg = await prisma.package.findUnique({
+            where: { id },
+            include: { tracking_events: { take: 1, orderBy: { event_time: 'desc' } } },
+        });
+        res.status(200).json({ success: true, data: serializePackage(pkg) });
+    })
+);
 
 module.exports = router;
