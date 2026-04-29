@@ -151,3 +151,34 @@ describe('integration: POST /api/packages', () => {
         rb.should.have.status(201);
     });
 });
+
+describe('integration: GET /api/packages/:id', () => {
+    it('returns the full event timeline ordered descending', async () => {
+        const alice = await seedUser();
+        const pkg = await seedPackage(alice.id);
+        await seedTrackingEvent(pkg.id, { status: 'PENDING', event_time: new Date('2026-04-20') });
+        await seedTrackingEvent(pkg.id, { status: 'IN_TRANSIT', event_time: new Date('2026-04-21') });
+
+        const res = await chai.request(app).get(`/api/packages/${pkg.id}`).set(authHeader(tokenFor(alice)));
+        res.should.have.status(200);
+        res.body.data.events.should.have.lengthOf(2);
+        res.body.data.events[0].status.should.equal('IN_TRANSIT');
+        res.body.data.latest_event.status.should.equal('IN_TRANSIT');
+    });
+
+    it('returns 404 for someone else\'s package', async () => {
+        const alice = await seedUser({ email: 'alice@example.com' });
+        const bob = await seedUser({ email: 'bob@example.com' });
+        const pkg = await seedPackage(bob.id);
+        const res = await chai.request(app).get(`/api/packages/${pkg.id}`).set(authHeader(tokenFor(alice)));
+        res.should.have.status(404);
+        res.body.error.code.should.equal('NOT_FOUND');
+    });
+
+    it('returns 404 for a non-numeric id', async () => {
+        const alice = await seedUser();
+        const res = await chai.request(app).get('/api/packages/abc').set(authHeader(tokenFor(alice)));
+        res.should.have.status(404);
+        res.body.error.code.should.equal('NOT_FOUND');
+    });
+});
