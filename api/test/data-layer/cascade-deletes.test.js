@@ -35,6 +35,7 @@ describe('data-layer: cascade deletes', () => {
             data: {
                 user_id: user.id,
                 provider: 'google',
+                connected_email: 'cascade-test@gmail.com',
                 access_token: 'fake-access',
                 refresh_token: 'fake-refresh',
                 expires_at: new Date('2027-01-01T00:00:00Z'),
