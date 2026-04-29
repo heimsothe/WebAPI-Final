@@ -21,6 +21,7 @@ const { envCheck } = require('./lib/envCheck');
 const authRouter = require('./routes/auth');
 const packagesRouter = require('./routes/packages');
 const exclusionsRouter = require('./routes/exclusions');
+const gmailRouter = require('./routes/gmail');
 const { errorHandler } = require('./middleware/errorHandler');
 
 envCheck();
@@ -36,6 +37,7 @@ if (process.env.NODE_ENV !== 'test') {
 app.use('/auth', authRouter);
 app.use('/api/packages', packagesRouter);
 app.use('/api/exclusions', exclusionsRouter);
+app.use('/api/gmail', gmailRouter);
 app.use(errorHandler);
 
 const PORT = process.env.PORT || 8080;
