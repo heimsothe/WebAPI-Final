@@ -21,6 +21,8 @@ const { asyncHandler } = require('../lib/asyncHandler');
 const { isAuthenticated } = require('../middleware/authJwt');
 const { validateBody } = require('../middleware/validateBody');
 const { buildOauthClient, SCOPES } = require('../lib/googleOauth');
+const { decryptToken } = require('../lib/tokenCrypto');
+const { parseId } = require('../lib/parseId');
 
 const router = express.Router();
 router.use(isAuthenticated);
@@ -88,6 +90,29 @@ router.get('/status', asyncHandler(async (req, res) => {
             })),
         },
     });
+}));
+
+router.delete('/connection/:id', asyncHandler(async (req, res) => {
+    const id = parseId(req.params.id);
+
+    const connection = await prisma.oauthCredential.findFirst({
+        where: { id, user_id: req.user.id, provider: 'google' },
+    });
+    if (!connection) {
+        throw new HttpError(404, 'NOT_FOUND', 'Connection not found.');
+    }
+
+    try {
+        const oauth = buildOauthClient();
+        const refreshToken = decryptToken(connection.refresh_token);
+        await oauth.revokeToken(refreshToken);
+    } catch (err) {
+        console.warn(`revokeToken failed for connection ${id}:`, err.message);
+    }
+
+    await prisma.oauthCredential.delete({ where: { id } });
+
+    res.status(204).end();
 }));
 
 module.exports = router;

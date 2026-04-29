@@ -269,3 +269,73 @@ describe('GET /api/gmail/status', () => {
         expect(res.body.data.connections).to.deep.equal([]);
     });
 });
+
+describe('DELETE /api/gmail/connection/:id', () => {
+
+    it('returns 401 without a token', async () => {
+        const res = await chai.request(app).delete('/api/gmail/connection/1');
+        expect(res).to.have.status(401);
+    });
+
+    it('returns 404 when the connection belongs to another user', async () => {
+        const alice = await seedUser({ email: 'alice@example.com' });
+        const bob = await seedUser({ email: 'bob@example.com' });
+        const bobConn = await seedConnection(bob.id);
+
+        const res = await chai.request(app)
+            .delete(`/api/gmail/connection/${bobConn.id}`)
+            .set(authHeader(tokenFor(alice)));
+        expect(res).to.have.status(404);
+    });
+
+    it('deletes the row and returns 204', async () => {
+        const user = await seedUser();
+        const conn = await seedConnection(user.id);
+        sinon.stub(google.auth.OAuth2.prototype, 'revokeToken').resolves();
+
+        const res = await chai.request(app)
+            .delete(`/api/gmail/connection/${conn.id}`)
+            .set(authHeader(tokenFor(user)));
+
+        expect(res).to.have.status(204);
+        const after = await prisma.oauthCredential.findUnique({ where: { id: conn.id } });
+        expect(after).to.equal(null);
+    });
+
+    it('still deletes the row even if Google revokeToken throws', async () => {
+        const user = await seedUser();
+        const conn = await seedConnection(user.id);
+        sinon.stub(google.auth.OAuth2.prototype, 'revokeToken').rejects(new Error('network'));
+
+        const res = await chai.request(app)
+            .delete(`/api/gmail/connection/${conn.id}`)
+            .set(authHeader(tokenFor(user)));
+
+        expect(res).to.have.status(204);
+        const after = await prisma.oauthCredential.findUnique({ where: { id: conn.id } });
+        expect(after).to.equal(null);
+    });
+
+    it('preserves packages with source_oauth_credential_id pointing at the deleted row (set to NULL)', async () => {
+        const user = await seedUser();
+        const conn = await seedConnection(user.id);
+        const pkg = await prisma.package.create({
+            data: {
+                user_id: user.id,
+                tracking_number: '1Z9999W99999999999',
+                carrier: 'UPS',
+                source: 'email_sync',
+                source_oauth_credential_id: conn.id,
+            },
+        });
+        sinon.stub(google.auth.OAuth2.prototype, 'revokeToken').resolves();
+
+        await chai.request(app)
+            .delete(`/api/gmail/connection/${conn.id}`)
+            .set(authHeader(tokenFor(user)));
+
+        const after = await prisma.package.findUnique({ where: { id: pkg.id } });
+        expect(after).to.not.equal(null);
+        expect(after.source_oauth_credential_id).to.equal(null);
+    });
+});
