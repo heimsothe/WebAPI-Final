@@ -49,13 +49,20 @@ router.get('/callback', asyncHandler(async (req, res) => {
         const result = await oauth.getToken(code);
         tokens = result.tokens;
     } catch (err) {
+        console.error('[callback] oauth.getToken failed:', err.response?.data || err.message);
         return redirectWithError(res, 'exchange_failed');
     }
 
-    if (!tokens.id_token) return redirectWithError(res, 'exchange_failed');
+    if (!tokens.id_token) {
+        console.error('[callback] no id_token in token response. Scopes returned:', tokens.scope);
+        return redirectWithError(res, 'exchange_failed');
+    }
     const idTokenPayload = jwt.decode(tokens.id_token);
     const connectedEmail = idTokenPayload?.email;
-    if (!connectedEmail) return redirectWithError(res, 'exchange_failed');
+    if (!connectedEmail) {
+        console.error('[callback] id_token missing email claim. Payload keys:', Object.keys(idTokenPayload || {}));
+        return redirectWithError(res, 'exchange_failed');
+    }
 
     const accountMismatch = expectedEmail && expectedEmail !== connectedEmail;
 

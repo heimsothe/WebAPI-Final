@@ -12,7 +12,17 @@ in different routes. SCOPES is exported so tests can assert against it.
 
 const { google } = require('googleapis');
 
-const SCOPES = ['https://www.googleapis.com/auth/gmail.readonly'];
+// gmail.readonly: the only API access we need.
+// openid + email: required for Google to return an id_token whose payload
+// contains the user's verified email. The callback decodes this id_token to
+// know which Gmail account just connected. Without these two scopes the token
+// endpoint returns access_token + refresh_token only, and the callback
+// short-circuits with gmail_error=exchange_failed.
+const SCOPES = [
+    'https://www.googleapis.com/auth/gmail.readonly',
+    'openid',
+    'email',
+];
 
 function buildOauthClient() {
     return new google.auth.OAuth2(
