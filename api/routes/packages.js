@@ -21,6 +21,7 @@ const { HttpError } = require('../lib/httpError');
 const { parseId } = require('../lib/parseId');
 const { validateBody } = require('../middleware/validateBody');
 const { createPackageSchema, patchPackageSchema } = require('../validators/packageValidators');
+const { syncUserConnections } = require('../lib/gmail/syncUserConnections');
 
 const router = express.Router();
 
@@ -48,6 +49,10 @@ router.get('/', asyncHandler(async (req, res) => {
                 orderBy: { event_time: 'desc' },
             },
         },
+    });
+
+    syncUserConnections(req.user.id).catch(err => {
+        console.error(`Auto-sync failed for user ${req.user.id}:`, err);
     });
 
     res.status(200).json({

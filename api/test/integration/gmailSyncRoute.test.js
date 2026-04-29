@@ -119,3 +119,44 @@ describe('POST /api/gmail/sync', () => {
         expect(res.body.error.code).to.equal('VALIDATION_FAILED');
     });
 });
+
+describe('GET /api/packages auto-sync hook', () => {
+
+    it('does not block on the auto-sync (returns within 100ms)', async () => {
+        const user = await seedUser();
+        await seedConnection(user.id);
+        const slowList = sinon.stub();
+        slowList.callsFake(() => new Promise(resolve =>
+            setTimeout(() => resolve({ data: { messages: [] } }), 5000)
+        ));
+        sinon.stub(google, 'gmail').returns({
+            users: { messages: { list: slowList, get: sinon.stub() } },
+        });
+        sinon.stub(google.auth.OAuth2.prototype, 'getAccessToken').resolves({ token: 'tok' });
+
+        const t0 = Date.now();
+        const res = await chai.request(app)
+            .get('/api/packages')
+            .set(authHeader(tokenFor(user)));
+        const elapsed = Date.now() - t0;
+
+        expect(res).to.have.status(200);
+        expect(elapsed).to.be.lessThan(500);
+    });
+
+    it('still returns 200 if auto-sync throws (errors swallowed)', async () => {
+        const user = await seedUser();
+        await seedConnection(user.id);
+        sinon.stub(google.auth.OAuth2.prototype, 'getAccessToken').rejects(new Error('boom'));
+        sinon.stub(google, 'gmail').returns({
+            users: { messages: { list: sinon.stub(), get: sinon.stub() } },
+        });
+
+        const res = await chai.request(app)
+            .get('/api/packages')
+            .set(authHeader(tokenFor(user)));
+
+        expect(res).to.have.status(200);
+        expect(res.body.success).to.equal(true);
+    });
+});
