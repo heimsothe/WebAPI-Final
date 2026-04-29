@@ -34,4 +34,13 @@ router.get('/', asyncHandler(async (req, res) => {
     });
 }));
 
+router.delete('/:id', asyncHandler(async (req, res) => {
+    const id = parseId(req.params.id);
+    const result = await prisma.excludedTrackingNumber.deleteMany({
+        where: { id, user_id: req.user.id },
+    });
+    if (result.count === 0) throw new HttpError(404, 'NOT_FOUND', 'Exclusion not found.');
+    res.status(204).end();
+}));
+
 module.exports = router;

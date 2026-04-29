@@ -45,3 +45,46 @@ describe('integration: GET /api/exclusions', () => {
         res.body.data[0].tracking_number.should.equal('A');
     });
 });
+
+describe('integration: DELETE /api/exclusions/:id', () => {
+    it('returns 204 and removes the row', async () => {
+        const alice = await seedUser();
+        const ex = await seedExclusion(alice.id, { tracking_number: 'X' });
+        const res = await chai.request(app).delete(`/api/exclusions/${ex.id}`).set(authHeader(tokenFor(alice)));
+        res.should.have.status(204);
+        const after = await prisma.excludedTrackingNumber.findUnique({ where: { id: ex.id } });
+        (after === null).should.equal(true);
+    });
+
+    it('lets the user re-add the formerly-excluded package via POST /api/packages', async () => {
+        const alice = await seedUser();
+        const ex = await seedExclusion(alice.id, { tracking_number: 'COMEBACK' });
+
+        // Confirm POST /api/packages refuses while exclusion exists
+        let res = await chai.request(app).post('/api/packages')
+            .set(authHeader(tokenFor(alice)))
+            .send({ tracking_number: 'COMEBACK', carrier: 'UPS' });
+        res.should.have.status(409);
+        res.body.error.code.should.equal('EXCLUDED');
+
+        // Remove the exclusion
+        res = await chai.request(app).delete(`/api/exclusions/${ex.id}`).set(authHeader(tokenFor(alice)));
+        res.should.have.status(204);
+
+        // POST should succeed now
+        res = await chai.request(app).post('/api/packages')
+            .set(authHeader(tokenFor(alice)))
+            .send({ tracking_number: 'COMEBACK', carrier: 'UPS' });
+        res.should.have.status(201);
+    });
+
+    it('returns 404 for someone else\'s exclusion', async () => {
+        const alice = await seedUser({ email: 'alice@example.com' });
+        const bob = await seedUser({ email: 'bob@example.com' });
+        const ex = await seedExclusion(bob.id);
+        const res = await chai.request(app).delete(`/api/exclusions/${ex.id}`).set(authHeader(tokenFor(alice)));
+        res.should.have.status(404);
+        const stillThere = await prisma.excludedTrackingNumber.findUnique({ where: { id: ex.id } });
+        stillThere.should.not.equal(null);
+    });
+});
