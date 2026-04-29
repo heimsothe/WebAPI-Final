@@ -38,4 +38,46 @@ describe('integration: POST /auth/signup', () => {
         payload.email.should.equal('alice@example.com');
         payload.sub.should.equal(res.body.data.user.id);
     });
+
+    it('returns 400 VALIDATION_FAILED when email is missing', async () => {
+        const res = await chai.request(app).post('/auth/signup').send({
+            password: 'longenough',
+        });
+        res.should.have.status(400);
+        res.body.error.code.should.equal('VALIDATION_FAILED');
+        res.body.error.details.map(d => d.field).should.include('email');
+    });
+
+    it('returns 400 VALIDATION_FAILED when password is too short', async () => {
+        const res = await chai.request(app).post('/auth/signup').send({
+            email: 'alice@example.com',
+            password: 'short',
+        });
+        res.should.have.status(400);
+        res.body.error.code.should.equal('VALIDATION_FAILED');
+        res.body.error.details.map(d => d.field).should.include('password');
+    });
+
+    it('returns 409 EMAIL_TAKEN when the email is already registered', async () => {
+        await chai.request(app).post('/auth/signup').send({
+            email: 'alice@example.com',
+            password: 'longenough',
+        });
+        const res = await chai.request(app).post('/auth/signup').send({
+            email: 'alice@example.com',
+            password: 'differentbutalsovalid',
+        });
+        res.should.have.status(409);
+        res.body.error.code.should.equal('EMAIL_TAKEN');
+    });
+
+    it('hashes the password with bcrypt cost 12', async () => {
+        await chai.request(app).post('/auth/signup').send({
+            email: 'alice@example.com',
+            password: 'plaintext-pw',
+        });
+        const user = await prisma.user.findUnique({ where: { email: 'alice@example.com' } });
+        user.password_hash.should.match(/^\$2[ab]\$12\$/);
+        user.password_hash.should.not.equal('plaintext-pw');
+    });
 });
