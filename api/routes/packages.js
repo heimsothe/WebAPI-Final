@@ -17,6 +17,9 @@ const { prisma } = require('../lib/prisma');
 const { isAuthenticated } = require('../middleware/authJwt');
 const { asyncHandler } = require('../lib/asyncHandler');
 const { serializePackage } = require('../lib/serialize');
+const { HttpError } = require('../lib/httpError');
+const { validateBody } = require('../middleware/validateBody');
+const { createPackageSchema } = require('../validators/packageValidators');
 
 const router = express.Router();
 
@@ -51,5 +54,41 @@ router.get('/', asyncHandler(async (req, res) => {
         data: packages.map(serializePackage),
     });
 }));
+
+router.post('/',
+    validateBody(createPackageSchema),
+    asyncHandler(async (req, res) => {
+        const { tracking_number, carrier, nickname } = req.body;
+
+        const excluded = await prisma.excludedTrackingNumber.findUnique({
+            where: { user_id_tracking_number: { user_id: req.user.id, tracking_number } },
+        });
+        if (excluded) {
+            throw new HttpError(409, 'EXCLUDED',
+                'This tracking number is on your exclusion list. Remove it from exclusions before re-adding.');
+        }
+
+        let pkg;
+        try {
+            pkg = await prisma.package.create({
+                data: {
+                    user_id: req.user.id,
+                    tracking_number,
+                    carrier,
+                    nickname,
+                    source: 'manual',
+                },
+                include: { tracking_events: { take: 1, orderBy: { event_time: 'desc' } } },
+            });
+        } catch (err) {
+            if (err.code === 'P2002') {
+                throw new HttpError(409, 'CONFLICT', 'You are already tracking this package.');
+            }
+            throw err;
+        }
+
+        res.status(201).json({ success: true, data: serializePackage(pkg) });
+    })
+);
 
 module.exports = router;
