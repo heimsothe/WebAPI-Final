@@ -17,6 +17,7 @@ function envCheck() {
         'GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET',
         'GOOGLE_REDIRECT_URI', 'FRONTEND_URL',
         'TOKEN_ENCRYPTION_KEY',
+        'FEDEX_API_BASE_URL', 'FEDEX_CLIENT_ID', 'FEDEX_CLIENT_SECRET',
     ];
     for (const name of required) {
         if (!process.env[name]) {
@@ -30,6 +31,25 @@ function envCheck() {
             `JWT_SECRET is too short (${Buffer.byteLength(secret, 'utf8')} bytes). ` +
             `Must be at least 32 bytes. Generate with: ` +
             `node -e "console.log(crypto.randomBytes(32).toString('base64'))"`
+        );
+    }
+
+    // Host-shape check on FEDEX_API_BASE_URL: parsed host must be one of the
+    // two known FedEx hosts. Catches missing scheme, trailing slash, or
+    // copy-paste of the developer-portal documentation URL.
+    const allowedFedexHosts = ['apis.fedex.com', 'apis-sandbox.fedex.com'];
+    let fedexUrl;
+    try {
+        fedexUrl = new URL(process.env.FEDEX_API_BASE_URL);
+    } catch (err) {
+        throw new Error(
+            `FEDEX_API_BASE_URL is not a valid URL: ${process.env.FEDEX_API_BASE_URL}`
+        );
+    }
+    if (!allowedFedexHosts.includes(fedexUrl.host)) {
+        throw new Error(
+            `FEDEX_API_BASE_URL must point at one of: ${allowedFedexHosts.join(', ')}. ` +
+            `Got host: ${fedexUrl.host}`
         );
     }
 }
