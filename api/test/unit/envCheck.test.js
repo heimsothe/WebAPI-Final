@@ -69,4 +69,29 @@ describe('lib/envCheck', () => {
         delete process.env.TOKEN_ENCRYPTION_KEY;
         (() => envCheck()).should.throw(/TOKEN_ENCRYPTION_KEY/);
     });
+
+    it('throws when FEDEX_API_BASE_URL is missing', () => {
+        delete process.env.FEDEX_API_BASE_URL;
+        (() => envCheck()).should.throw(/FEDEX_API_BASE_URL/);
+    });
+
+    it('throws when FEDEX_API_BASE_URL has an unknown host', () => {
+        process.env.FEDEX_API_BASE_URL = 'https://developer.fedex.com';
+        (() => envCheck()).should.throw(/must point at one of/);
+    });
+
+    it('throws when FEDEX_API_BASE_URL is not a valid URL', () => {
+        process.env.FEDEX_API_BASE_URL = 'not a url';
+        (() => envCheck()).should.throw(/not a valid URL/);
+    });
+
+    it('accepts the production FedEx host', () => {
+        process.env.FEDEX_API_BASE_URL = 'https://apis.fedex.com';
+        (() => envCheck()).should.not.throw();
+    });
+
+    it('accepts the sandbox FedEx host', () => {
+        process.env.FEDEX_API_BASE_URL = 'https://apis-sandbox.fedex.com';
+        (() => envCheck()).should.not.throw();
+    });
 });
