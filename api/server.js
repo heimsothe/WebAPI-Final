@@ -6,9 +6,10 @@
 - Class: CSCI 3916
 
 Description: Express bootstrap. Loads env vars, validates them,
-configures middleware (CORS, JSON parsing, request logging), mounts
-routers, attaches the central error handler, and listens on PORT
-when run as the entry point. Exports the app for chai-http tests.
+configures middleware (CORS, JSON parsing, request logging), registers
+carrier adapters in the carrier registry, mounts routers, attaches the
+central error handler, and listens on PORT when run as the entry point.
+Exports the app for chai-http tests.
  */
 
 require('dotenv').config();
@@ -24,6 +25,15 @@ const exclusionsRouter = require('./routes/exclusions');
 const gmailRouter = require('./routes/gmail');
 const googleCallbackRouter = require('./routes/googleCallback');
 const { errorHandler } = require('./middleware/errorHandler');
+
+// Carrier registry boot. Each adapter must be registered before any
+// route handler can call registry.getTrackingInfoWithFallback().
+const carrierRegistry = require('./lib/carriers/registry');
+const fedexAdapter = require('./lib/carriers/fedex/adapter');
+carrierRegistry.register(fedexAdapter);
+// Phase 5 will append:
+// carrierRegistry.register(require('./lib/carriers/ups/adapter'));
+// carrierRegistry.register(require('./lib/carriers/usps/adapter'));
 
 envCheck();
 
