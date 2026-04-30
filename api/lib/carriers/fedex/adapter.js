@@ -29,9 +29,89 @@ function mapStatus(derivedCode) {
     return STATUS_MAP[derivedCode] || 'UNKNOWN';
 }
 
-// fetchRaw, normalize, getTrackingInfo are added in tasks E2 and E3.
+function formatLocation(loc) {
+    if (!loc) return null;
+    const parts = [];
+    if (loc.city) parts.push(loc.city);
+    const tail = [loc.stateOrProvinceCode, loc.countryCode].filter(Boolean).join(' ');
+    if (tail) parts.push(tail);
+    if (parts.length === 0) return null;
+    return parts.join(', ');
+}
+
+function toNormalizedEvent(scanEvent) {
+    return {
+        eventTime: new Date(scanEvent.date),
+        status: mapStatus(scanEvent.derivedStatusCode),
+        carrierRawStatus: scanEvent.derivedStatusCode || '',
+        description: scanEvent.eventDescription || scanEvent.derivedStatus || '',
+        location: formatLocation(scanEvent.scanLocation),
+    };
+}
+
+function pickDateAndTime(trackResult, types) {
+    const list = trackResult.dateAndTimes || [];
+    for (const t of types) {
+        const found = list.find(d => d.type === t && d.dateTime);
+        if (found) return new Date(found.dateTime);
+    }
+    return null;
+}
+
+function synthesizeFromLatestStatus(trackResult) {
+    const lsd = trackResult.latestStatusDetail || {};
+    const eventTime = pickDateAndTime(trackResult, ['SHIPMENT_DATA_RECEIVED', 'SHIP']) || new Date();
+    return {
+        eventTime,
+        status: mapStatus(lsd.derivedCode),
+        carrierRawStatus: lsd.derivedCode || '',
+        description: lsd.description || lsd.statusByLocale || '',
+        location: formatLocation(lsd.scanLocation),
+    };
+}
+
+function isPerResultNotFound(trackResult) {
+    const code = trackResult && trackResult.error && trackResult.error.code;
+    return typeof code === 'string' && code.includes('NOTFOUND');
+}
+
+function isTopLevelNotFound(rawResponse) {
+    const alerts = (rawResponse && rawResponse.output && rawResponse.output.alerts) || [];
+    return alerts.some(a => a && a.code === 'TRACKING.DATA.NOTFOUND');
+}
+
+function normalize(rawResponse) {
+    const top = (rawResponse && rawResponse.output && rawResponse.output.completeTrackResults) || [];
+    const first = top[0] || {};
+    const trackResult = (first.trackResults && first.trackResults[0]) || {};
+    const inputNumber = first.trackingNumber || '';
+
+    if (isPerResultNotFound(trackResult) || isTopLevelNotFound(rawResponse)) {
+        return { found: false, trackingNumber: inputNumber, carrier: 'FEDEX' };
+    }
+
+    const scanEvents = trackResult.scanEvents || [];
+    const events = scanEvents.map(toNormalizedEvent);
+
+    if (events.length === 0 && trackResult.latestStatusDetail) {
+        events.push(synthesizeFromLatestStatus(trackResult));
+    }
+
+    events.sort((a, b) => b.eventTime - a.eventTime);
+
+    return {
+        found: true,
+        trackingNumber: inputNumber,
+        carrier: 'FEDEX',
+        currentStatus: events[0] ? events[0].status : 'UNKNOWN',
+        events,
+    };
+}
+
+// fetchRaw, getTrackingInfo are added in task E3.
 
 module.exports = {
     name: 'FEDEX',
     mapStatus,
+    normalize,
 };
