@@ -12,7 +12,7 @@ mapStatus maps FedEx derivedCode values into the seven-value StatusEnum.
  */
 
 const { AdapterFetchError } = require('../registry');
-const { getAccessToken } = require('./auth');
+const auth = require('./auth');
 
 const STATUS_MAP = {
     IN: 'PENDING', OC: 'PENDING',
@@ -108,10 +108,53 @@ function normalize(rawResponse) {
     };
 }
 
-// fetchRaw, getTrackingInfo are added in task E3.
+async function fetchRaw(trackingNumber) {
+    const accessToken = await auth.getAccessToken();
+    const url = `${process.env.FEDEX_API_BASE_URL}/track/v1/trackingnumbers`;
+
+    let res;
+    try {
+        res = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${accessToken}`,
+                'Content-Type': 'application/json',
+                'x-locale': 'en_US',
+            },
+            body: JSON.stringify({
+                trackingInfo: [{ trackingNumberInfo: { trackingNumber } }],
+                includeDetailedScans: true,
+            }),
+        });
+    } catch (err) {
+        throw new AdapterFetchError('carrier_unavailable', `FedEx fetch failed: ${err.message}`);
+    }
+
+    if (res.status === 401 || res.status === 403) {
+        throw new AdapterFetchError('auth_failed', 'FedEx rejected our credentials.');
+    }
+    if (res.status >= 500) {
+        throw new AdapterFetchError('carrier_unavailable', `FedEx returned ${res.status}.`);
+    }
+    if (!res.ok) {
+        throw new AdapterFetchError('bad_request', `FedEx returned ${res.status}.`);
+    }
+    try {
+        return await res.json();
+    } catch (err) {
+        throw new AdapterFetchError('carrier_unavailable', `FedEx returned non-JSON: ${err.message}`);
+    }
+}
+
+async function getTrackingInfo(trackingNumber) {
+    const raw = await module.exports.fetchRaw(trackingNumber);
+    return normalize(raw);
+}
 
 module.exports = {
     name: 'FEDEX',
     mapStatus,
     normalize,
+    fetchRaw,
+    getTrackingInfo,
 };

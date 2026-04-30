@@ -150,3 +150,88 @@ describe('lib/carriers/fedex/adapter.normalize', () => {
         fedex.normalize(fake).found.should.equal(false);
     });
 });
+
+const auth = require('../../../lib/carriers/fedex/auth');
+const { AdapterFetchError } = require('../../../lib/carriers/registry');
+
+describe('lib/carriers/fedex/adapter.fetchRaw', () => {
+    beforeEach(() => {
+        auth._resetForTests();
+        sinon.stub(auth, 'getAccessToken').resolves('test-token');
+    });
+    afterEach(() => sinon.restore());
+
+    it('POSTs the correct body and headers and returns parsed JSON', async () => {
+        const fakeBody = { output: { completeTrackResults: [{ trackingNumber: 'X', trackResults: [{}] }] } };
+        const fetchStub = sinon.stub(global, 'fetch').resolves({
+            status: 200, ok: true, json: () => Promise.resolve(fakeBody),
+        });
+
+        const out = await fedex.fetchRaw('123');
+        out.should.deep.equal(fakeBody);
+
+        const [url, init] = fetchStub.firstCall.args;
+        url.should.match(/\/track\/v1\/trackingnumbers$/);
+        init.method.should.equal('POST');
+        init.headers['Authorization'].should.equal('Bearer test-token');
+        init.headers['Content-Type'].should.equal('application/json');
+        init.headers['x-locale'].should.equal('en_US');
+        const sent = JSON.parse(init.body);
+        sent.should.deep.equal({
+            trackingInfo: [{ trackingNumberInfo: { trackingNumber: '123' } }],
+            includeDetailedScans: true,
+        });
+    });
+
+    it('throws AdapterFetchError(auth_failed) on 401', async () => {
+        sinon.stub(global, 'fetch').resolves({ status: 401, ok: false, json: () => Promise.resolve({}) });
+        try {
+            await fedex.fetchRaw('123');
+            throw new Error('expected to throw');
+        } catch (err) {
+            err.should.be.instanceOf(AdapterFetchError);
+            err.reason.should.equal('auth_failed');
+        }
+    });
+
+    it('throws AdapterFetchError(carrier_unavailable) on 503', async () => {
+        sinon.stub(global, 'fetch').resolves({ status: 503, ok: false, json: () => Promise.resolve({}) });
+        try {
+            await fedex.fetchRaw('123');
+            throw new Error('expected to throw');
+        } catch (err) {
+            err.reason.should.equal('carrier_unavailable');
+        }
+    });
+
+    it('throws AdapterFetchError(carrier_unavailable) on network error', async () => {
+        sinon.stub(global, 'fetch').rejects(new TypeError('Failed to fetch'));
+        try {
+            await fedex.fetchRaw('123');
+            throw new Error('expected to throw');
+        } catch (err) {
+            err.reason.should.equal('carrier_unavailable');
+        }
+    });
+
+    it('throws AdapterFetchError(bad_request) on 400', async () => {
+        sinon.stub(global, 'fetch').resolves({ status: 400, ok: false, json: () => Promise.resolve({}) });
+        try {
+            await fedex.fetchRaw('123');
+            throw new Error('expected to throw');
+        } catch (err) {
+            err.reason.should.equal('bad_request');
+        }
+    });
+});
+
+describe('lib/carriers/fedex/adapter.getTrackingInfo', () => {
+    afterEach(() => sinon.restore());
+
+    it('composes fetchRaw + normalize', async () => {
+        sinon.stub(fedex, 'fetchRaw').resolves(fixtures.FEDEX_DELIVERED);
+        const out = await fedex.getTrackingInfo('613746411451');
+        out.found.should.equal(true);
+        out.currentStatus.should.equal('DELIVERED');
+    });
+});
