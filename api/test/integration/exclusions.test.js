@@ -12,6 +12,7 @@ POST /api/packages.
  */
 
 const chai = require('chai');
+const sinon = require('sinon');
 
 // chai-http and chai.use(chaiHttp) are already wired up in test/setup.js.
 
@@ -19,6 +20,9 @@ const app = require('../../server');
 const {
     prisma, seedUser, seedExclusion, tokenFor, authHeader,
 } = require('../helpers/db');
+const fedexAdapter = require('../../lib/carriers/fedex/adapter');
+const fixtures = require('../helpers/fixtures');
+const { stubCarrierFetch } = require('../helpers/stubs');
 
 describe('integration: GET /api/exclusions', () => {
     it('returns the caller\'s exclusions ordered by excluded_at desc', async () => {
@@ -60,7 +64,9 @@ describe('integration: DELETE /api/exclusions/:id', () => {
         const alice = await seedUser();
         const ex = await seedExclusion(alice.id, { tracking_number: 'COMEBACK' });
 
-        // Confirm POST /api/packages refuses while exclusion exists
+        // Confirm POST /api/packages refuses while exclusion exists. The route
+        // checks the exclusion list before calling the registry, so no carrier
+        // stub is needed for this leg.
         let res = await chai.request(app).post('/api/packages')
             .set(authHeader(tokenFor(alice)))
             .send({ tracking_number: 'COMEBACK', carrier: 'UPS' });
@@ -71,11 +77,17 @@ describe('integration: DELETE /api/exclusions/:id', () => {
         res = await chai.request(app).delete(`/api/exclusions/${ex.id}`).set(authHeader(tokenFor(alice)));
         res.should.have.status(204);
 
-        // POST should succeed now
-        res = await chai.request(app).post('/api/packages')
-            .set(authHeader(tokenFor(alice)))
-            .send({ tracking_number: 'COMEBACK', carrier: 'UPS' });
-        res.should.have.status(201);
+        // POST should succeed now. Phase 4: stub the carrier before this leg
+        // so we don't hit the real FedEx sandbox.
+        stubCarrierFetch(fedexAdapter, fixtures.FEDEX_DELIVERED);
+        try {
+            res = await chai.request(app).post('/api/packages')
+                .set(authHeader(tokenFor(alice)))
+                .send({ tracking_number: 'COMEBACK', carrier: 'UPS' });
+            res.should.have.status(201);
+        } finally {
+            sinon.restore();
+        }
     });
 
     it('returns 404 for someone else\'s exclusion', async () => {

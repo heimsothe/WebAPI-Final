@@ -76,17 +76,44 @@ router.post('/',
                 'This tracking number is on your exclusion list. Remove it from exclusions before re-adding.');
         }
 
+        // Phase 4: validate the carrier knows this number BEFORE creating the package row.
+        let trackResult, carrierUsed;
+        try {
+            ({ result: trackResult, carrierUsed } =
+                await carrierRegistry.getTrackingInfoWithFallback(tracking_number, carrier));
+        } catch (err) {
+            if (err instanceof carrierRegistry.AdapterFetchError) {
+                throw new HttpError(503, 'CARRIER_API_UNAVAILABLE',
+                    'The carrier API is currently unreachable. Try again in a moment.');
+            }
+            throw err;
+        }
+        if (!trackResult.found) {
+            throw new HttpError(422, 'CARRIER_NUMBER_NOT_FOUND',
+                'No carrier recognized this tracking number. Check for typos and try again.');
+        }
+
         let pkg;
         try {
-            pkg = await prisma.package.create({
-                data: {
-                    user_id: req.user.id,
-                    tracking_number,
-                    carrier,
-                    nickname,
-                    source: 'manual',
-                },
-                include: { tracking_events: { take: 1, orderBy: { event_time: 'desc' } } },
+            pkg = await prisma.$transaction(async (tx) => {
+                const created = await tx.package.create({
+                    data: {
+                        user_id: req.user.id,
+                        tracking_number,
+                        carrier: carrierUsed,
+                        nickname,
+                        source: 'manual',
+                        last_checked_at: new Date(),
+                    },
+                });
+                await tx.trackingEvent.createMany({
+                    data: trackResult.events.map(e => toEventRow(created.id, e)),
+                    skipDuplicates: true,
+                });
+                return tx.package.findUnique({
+                    where: { id: created.id },
+                    include: { tracking_events: { orderBy: { event_time: 'desc' } } },
+                });
             });
         } catch (err) {
             if (err.code === 'P2002') {
@@ -95,7 +122,7 @@ router.post('/',
             throw err;
         }
 
-        res.status(201).json({ success: true, data: serializePackage(pkg) });
+        res.status(201).json({ success: true, data: serializePackageDetail(pkg) });
     })
 );
 

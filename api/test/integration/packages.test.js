@@ -12,6 +12,7 @@ exclusion flow.
  */
 
 const chai = require('chai');
+const sinon = require('sinon');
 
 // chai-http and chai.use(chaiHttp) are already wired up in test/setup.js.
 
@@ -20,6 +21,9 @@ const {
     prisma, seedUser, seedPackage, seedTrackingEvent, seedExclusion,
     tokenFor, authHeader,
 } = require('../helpers/db');
+const fedexAdapter = require('../../lib/carriers/fedex/adapter');
+const fixtures = require('../helpers/fixtures');
+const { stubCarrierFetch, stubCarrierFetchError } = require('../helpers/stubs');
 
 describe('integration: GET /api/packages', () => {
     it('returns only the caller\'s packages', async () => {
@@ -78,6 +82,14 @@ describe('integration: GET /api/packages', () => {
 });
 
 describe('integration: POST /api/packages', () => {
+    beforeEach(() => {
+        // Phase 4: pre-stub the carrier with a known-good fixture so existing
+        // tests that expect 201 don't hit the real FedEx sandbox. Tests that
+        // need a different stub (NOTFOUND, error, etc.) call sinon.restore()
+        // and re-stub inside their own it() body.
+        stubCarrierFetch(fedexAdapter, fixtures.FEDEX_DELIVERED);
+    });
+
     it('returns 201 with the new package on valid body', async () => {
         const alice = await seedUser();
         const res = await chai.request(app).post('/api/packages')
@@ -86,7 +98,9 @@ describe('integration: POST /api/packages', () => {
         res.should.have.status(201);
         res.body.data.tracking_number.should.equal('1Z999AA10123456784');
         res.body.data.source.should.equal('manual');
-        (res.body.data.latest_event === null).should.equal(true);
+        // Phase 4: synchronous refresh populates events on POST.
+        res.body.data.events.length.should.be.greaterThan(0);
+        (res.body.data.latest_event === null).should.equal(false);
     });
 
     it('returns 400 VALIDATION_FAILED when tracking_number is missing', async () => {
@@ -149,6 +163,109 @@ describe('integration: POST /api/packages', () => {
             .send({ tracking_number: 'SAME', carrier: 'UPS' });
         ra.should.have.status(201);
         rb.should.have.status(201);
+    });
+
+    // -- Phase 4 additions: synchronous refresh during POST --
+
+    it('Phase 4: stubbed FedEx returns events; package created with full timeline', async () => {
+        const alice = await seedUser();
+        // Default beforeEach stub (FEDEX_DELIVERED) is what we want here, no override.
+
+        const res = await chai.request(app)
+            .post('/api/packages')
+            .set(authHeader(tokenFor(alice)))
+            .send({ tracking_number: '613746411451', carrier: 'FEDEX' });
+
+        res.should.have.status(201);
+        res.body.data.events.length.should.be.greaterThan(0);
+        (res.body.data.last_checked_at === null).should.equal(false);
+    });
+
+    it('Phase 4: NOTFOUND -> 422 CARRIER_NUMBER_NOT_FOUND, no row created', async () => {
+        const alice = await seedUser();
+        // The describe-level beforeEach has already stubbed fetchRaw with
+        // FEDEX_DELIVERED. Restore first, then re-stub with the override
+        // fixture: sinon.stub() against an already-wrapped method throws
+        // TypeError: Already wrapped.
+        sinon.restore();
+        stubCarrierFetch(fedexAdapter, fixtures.FEDEX_NOT_FOUND);
+
+        const res = await chai.request(app)
+            .post('/api/packages')
+            .set(authHeader(tokenFor(alice)))
+            .send({ tracking_number: '647719948679', carrier: 'FEDEX' });
+
+        res.should.have.status(422);
+        res.body.error.code.should.equal('CARRIER_NUMBER_NOT_FOUND');
+        const count = await prisma.package.count({ where: { user_id: alice.id } });
+        count.should.equal(0);
+    });
+
+    it('Phase 4: AdapterFetchError -> 503 CARRIER_API_UNAVAILABLE, no row created', async () => {
+        const alice = await seedUser();
+        sinon.restore();
+        stubCarrierFetchError(fedexAdapter, 'carrier_unavailable');
+
+        const res = await chai.request(app)
+            .post('/api/packages')
+            .set(authHeader(tokenFor(alice)))
+            .send({ tracking_number: '613746411451', carrier: 'FEDEX' });
+
+        res.should.have.status(503);
+        res.body.error.code.should.equal('CARRIER_API_UNAVAILABLE');
+        const count = await prisma.package.count({ where: { user_id: alice.id } });
+        count.should.equal(0);
+    });
+
+    it('Phase 4: carrier-changed: user said UPS, FedEx resolved; stored carrier is FEDEX', async () => {
+        const alice = await seedUser();
+        // Default beforeEach stub (FEDEX_DELIVERED) is what we want here, no override.
+
+        const res = await chai.request(app)
+            .post('/api/packages')
+            .set(authHeader(tokenFor(alice)))
+            .send({ tracking_number: '613746411451', carrier: 'UPS' });
+
+        res.should.have.status(201);
+        res.body.data.carrier.should.equal('FEDEX');
+    });
+
+    it('Phase 4: excluded number returns 409 BEFORE the registry is called', async () => {
+        const alice = await seedUser();
+        // The describe-level beforeEach already stubbed fetchRaw. Reference it
+        // directly to assert it was never called - do NOT re-stub.
+        await prisma.excludedTrackingNumber.create({
+            data: { user_id: alice.id, tracking_number: '613746411451' },
+        });
+
+        const res = await chai.request(app)
+            .post('/api/packages')
+            .set(authHeader(tokenFor(alice)))
+            .send({ tracking_number: '613746411451', carrier: 'FEDEX' });
+
+        res.should.have.status(409);
+        res.body.error.code.should.equal('EXCLUDED');
+        fedexAdapter.fetchRaw.called.should.equal(false);
+    });
+
+    it('Phase 4: duplicate tracking number still surfaces 409 CONFLICT post-registry', async () => {
+        const alice = await seedUser();
+        // First POST uses the default FEDEX_DELIVERED stub from beforeEach.
+        await chai.request(app)
+            .post('/api/packages')
+            .set(authHeader(tokenFor(alice)))
+            .send({ tracking_number: '613746411451', carrier: 'FEDEX' });
+
+        // Second POST: re-use the same default stub (no second stubCarrierFetch
+        // call - that would be 'already wrapped'). The route hits the unique
+        // constraint inside the transaction.
+        const res = await chai.request(app)
+            .post('/api/packages')
+            .set(authHeader(tokenFor(alice)))
+            .send({ tracking_number: '613746411451', carrier: 'FEDEX' });
+
+        res.should.have.status(409);
+        res.body.error.code.should.equal('CONFLICT');
     });
 });
 
