@@ -14,6 +14,7 @@
     "test:unit": "mocha 'test/unit/**/*.test.js'",
     "test:integration": "mocha 'test/integration/**/*.test.js'",
     "test:data-layer": "mocha 'test/data-layer/**/*.test.js'",
+    "test:contract": "mocha 'test/contract/**/*.test.js'",
     "test:watch": "mocha 'test/**/*.test.js' --watch",
     "test:db:setup": "dotenv -e .env.test -- prisma migrate deploy"
   },
