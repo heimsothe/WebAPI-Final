@@ -22,6 +22,8 @@ const { parseId } = require('../lib/parseId');
 const { validateBody } = require('../middleware/validateBody');
 const { createPackageSchema, patchPackageSchema } = require('../validators/packageValidators');
 const { syncUserConnections } = require('../lib/gmail/syncUserConnections');
+const carrierRegistry = require('../lib/carriers/registry');
+const { toEventRow } = require('../lib/carriers/persistEvents');
 
 const router = express.Router();
 
@@ -156,5 +158,98 @@ router.delete('/:id', asyncHandler(async (req, res) => {
 
     res.status(204).end();
 }));
+
+const REFRESH_COOLDOWN_MS = 5 * 60 * 1000;
+const REFRESH_COOLDOWN_SECONDS = REFRESH_COOLDOWN_MS / 1000;
+
+router.post('/:id/refresh', asyncHandler(async (req, res) => {
+    const id = parseId(req.params.id);
+    const pkg = await prisma.package.findFirst({
+        where: { id, user_id: req.user.id },
+        include: { tracking_events: { orderBy: { event_time: 'desc' } } },
+    });
+    if (!pkg) throw new HttpError(404, 'NOT_FOUND', 'Package not found.');
+
+    const now = Date.now();
+    const lastChecked = pkg.last_checked_at ? pkg.last_checked_at.getTime() : 0;
+    const cooldownRemainingMs = (lastChecked + REFRESH_COOLDOWN_MS) - now;
+    if (cooldownRemainingMs > 0) {
+        return res.status(200).json(buildRefreshResponse(pkg, {
+            skipped: true,
+            skip_reason: 'rate_limited',
+            cooldown_remaining_seconds: Math.ceil(cooldownRemainingMs / 1000),
+            fetched_at: null,
+        }));
+    }
+
+    let refresh;
+    let updatedPkg = pkg;
+    try {
+        const { result, carrierUsed, carrierChanged } =
+            await carrierRegistry.getTrackingInfoWithFallback(pkg.tracking_number, pkg.carrier);
+
+        if (!result.found) {
+            updatedPkg = await touchLastChecked(pkg.id);
+            refresh = {
+                skipped: true,
+                skip_reason: 'not_found',
+                cooldown_remaining_seconds: REFRESH_COOLDOWN_SECONDS,
+                fetched_at: new Date(),
+            };
+        } else {
+            const insertResult = await persistRefresh(pkg, result, carrierChanged ? carrierUsed : null);
+            updatedPkg = insertResult.package;
+            refresh = {
+                skipped: false,
+                inserted_event_count: insertResult.insertedCount,
+                carrier_changed_from: carrierChanged ? pkg.carrier : null,
+                fetched_at: new Date(),
+            };
+        }
+    } catch (err) {
+        if (!(err instanceof carrierRegistry.AdapterFetchError)) throw err;
+        updatedPkg = await touchLastChecked(pkg.id);
+        refresh = {
+            skipped: true,
+            skip_reason: err.reason,
+            cooldown_remaining_seconds: REFRESH_COOLDOWN_SECONDS,
+            fetched_at: null,
+        };
+    }
+
+    res.status(200).json(buildRefreshResponse(updatedPkg, refresh));
+}));
+
+function buildRefreshResponse(pkg, refresh) {
+    return {
+        success: true,
+        data: { package: serializePackageDetail(pkg), refresh },
+    };
+}
+
+async function touchLastChecked(id) {
+    return prisma.package.update({
+        where: { id },
+        data: { last_checked_at: new Date() },
+        include: { tracking_events: { orderBy: { event_time: 'desc' } } },
+    });
+}
+
+async function persistRefresh(pkg, result, newCarrier) {
+    return prisma.$transaction(async (tx) => {
+        const insertOutcome = await tx.trackingEvent.createMany({
+            data: result.events.map(e => toEventRow(pkg.id, e)),
+            skipDuplicates: true,
+        });
+        const updateData = { last_checked_at: new Date() };
+        if (newCarrier) updateData.carrier = newCarrier;
+        await tx.package.update({ where: { id: pkg.id }, data: updateData });
+        const fresh = await tx.package.findUnique({
+            where: { id: pkg.id },
+            include: { tracking_events: { orderBy: { event_time: 'desc' } } },
+        });
+        return { package: fresh, insertedCount: insertOutcome.count };
+    });
+}
 
 module.exports = router;
