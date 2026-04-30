@@ -35,9 +35,54 @@ function _resetForTests() {
     adapters.length = 0;
 }
 
-// Fallback orchestration is added in Task F1.
-async function getTrackingInfoWithFallback(/* trackingNumber, assignedCarrier */) {
-    throw new Error('getTrackingInfoWithFallback not implemented yet');
+async function getTrackingInfoWithFallback(trackingNumber, assignedCarrier) {
+    const all = getAll();
+    const ordered = [
+        ...all.filter(a => a.name === assignedCarrier),
+        ...all.filter(a => a.name !== assignedCarrier),
+    ];
+
+    if (ordered.length === 0) {
+        return {
+            result: { found: false, trackingNumber, carrier: assignedCarrier },
+            carrierUsed: null,
+            carrierChanged: false,
+        };
+    }
+
+    const fetchErrors = [];
+    for (const adapter of ordered) {
+        let result;
+        try {
+            result = await adapter.getTrackingInfo(trackingNumber);
+        } catch (err) {
+            if (err instanceof AdapterFetchError) {
+                fetchErrors.push({ carrier: adapter.name, reason: err.reason });
+                continue;
+            }
+            throw err;
+        }
+        if (result && result.found) {
+            return {
+                result,
+                carrierUsed: adapter.name,
+                carrierChanged: adapter.name !== assignedCarrier,
+            };
+        }
+    }
+
+    if (fetchErrors.length === ordered.length) {
+        throw new AdapterFetchError(
+            fetchErrors[0].reason,
+            `All registered carriers failed: ${fetchErrors.map(e => `${e.carrier}=${e.reason}`).join(', ')}`,
+        );
+    }
+
+    return {
+        result: { found: false, trackingNumber, carrier: assignedCarrier },
+        carrierUsed: null,
+        carrierChanged: false,
+    };
 }
 
 module.exports = {

@@ -52,3 +52,103 @@ describe('AdapterFetchError', () => {
         err.reason.should.equal('auth_failed');
     });
 });
+
+const sinon = require('sinon');
+
+function fakeAdapter(name, behavior) {
+    // behavior: { found: true|false } | { throws: AdapterFetchError }
+    return {
+        name,
+        getTrackingInfo: sinon.stub().callsFake(async () => {
+            if (behavior.throws) throw behavior.throws;
+            if (behavior.found) {
+                return { found: true, trackingNumber: 'X', carrier: name,
+                         currentStatus: 'IN_TRANSIT',
+                         events: [{ eventTime: new Date(), status: 'IN_TRANSIT',
+                                    carrierRawStatus: 'IT', description: 'd', location: null }] };
+            }
+            return { found: false, trackingNumber: 'X', carrier: name };
+        }),
+    };
+}
+
+describe('lib/carriers/registry.getTrackingInfoWithFallback', () => {
+    beforeEach(() => registry._resetForTests());
+
+    it('puts the assigned carrier first', async () => {
+        const a = fakeAdapter('A', { found: false });
+        const b = fakeAdapter('B', { found: true });
+        const c = fakeAdapter('C', { found: false });
+        registry.register(a); registry.register(b); registry.register(c);
+
+        const out = await registry.getTrackingInfoWithFallback('X', 'B');
+        out.carrierUsed.should.equal('B');
+        out.carrierChanged.should.equal(false);
+        b.getTrackingInfo.calledOnce.should.equal(true);
+        a.getTrackingInfo.called.should.equal(false);    // never reached
+    });
+
+    it('when assigned not registered, iterates registration order', async () => {
+        const a = fakeAdapter('A', { found: false });
+        const b = fakeAdapter('B', { found: true });
+        registry.register(a); registry.register(b);
+        const out = await registry.getTrackingInfoWithFallback('X', 'NEVER_REGISTERED');
+        out.carrierUsed.should.equal('B');
+        out.carrierChanged.should.equal(true);   // assigned was 'NEVER_REGISTERED'
+        a.getTrackingInfo.calledOnce.should.equal(true);
+    });
+
+    it('returns first found and short-circuits remaining adapters', async () => {
+        const a = fakeAdapter('A', { found: true });
+        const b = fakeAdapter('B', { found: true });
+        registry.register(a); registry.register(b);
+        const out = await registry.getTrackingInfoWithFallback('X', 'A');
+        out.result.found.should.equal(true);
+        out.carrierUsed.should.equal('A');
+        b.getTrackingInfo.called.should.equal(false);
+    });
+
+    it('flags carrier_changed when found via a non-assigned adapter', async () => {
+        const a = fakeAdapter('A', { found: false });
+        const b = fakeAdapter('B', { found: true });
+        registry.register(a); registry.register(b);
+        const out = await registry.getTrackingInfoWithFallback('X', 'A');
+        out.carrierUsed.should.equal('B');
+        out.carrierChanged.should.equal(true);
+    });
+
+    it('all NOTFOUND -> returns found:false with the assigned carrier name', async () => {
+        const chai = require('chai');
+        registry.register(fakeAdapter('A', { found: false }));
+        registry.register(fakeAdapter('B', { found: false }));
+        const out = await registry.getTrackingInfoWithFallback('X', 'A');
+        out.result.found.should.equal(false);
+        out.result.carrier.should.equal('A');
+        chai.expect(out.carrierUsed).to.equal(null);
+    });
+
+    it('mixed throw + NOTFOUND -> returns found:false (NOTFOUND wins)', async () => {
+        registry.register(fakeAdapter('A', { throws: new registry.AdapterFetchError('carrier_unavailable', 'down') }));
+        registry.register(fakeAdapter('B', { found: false }));
+        const out = await registry.getTrackingInfoWithFallback('X', 'A');
+        out.result.found.should.equal(false);
+    });
+
+    it('all throws -> throws AdapterFetchError', async () => {
+        registry.register(fakeAdapter('A', { throws: new registry.AdapterFetchError('carrier_unavailable', 'a') }));
+        registry.register(fakeAdapter('B', { throws: new registry.AdapterFetchError('auth_failed', 'b') }));
+        try {
+            await registry.getTrackingInfoWithFallback('X', 'A');
+            throw new Error('expected to throw');
+        } catch (err) {
+            err.should.be.instanceOf(registry.AdapterFetchError);
+            err.reason.should.equal('carrier_unavailable');   // first error's reason
+        }
+    });
+
+    it('empty registry -> returns found:false with carrier=assigned', async () => {
+        const out = await registry.getTrackingInfoWithFallback('X', 'FEDEX');
+        out.result.found.should.equal(false);
+        out.result.carrier.should.equal('FEDEX');
+    });
+});
