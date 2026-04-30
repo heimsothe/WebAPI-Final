@@ -94,4 +94,44 @@ describe('lib/envCheck', () => {
         process.env.FEDEX_API_BASE_URL = 'https://apis-sandbox.fedex.com';
         (() => envCheck()).should.not.throw();
     });
+
+    describe('USPS_API_BASE_URL host validation', () => {
+        beforeEach(() => {
+            // Restore a known-good baseline before each test, then individual
+            // tests override the value under test.
+            process.env.USPS_API_BASE_URL = 'https://apis-tem.usps.com';
+            process.env.USPS_CLIENT_ID = 'x';
+            process.env.USPS_CLIENT_SECRET = 'x';
+        });
+
+        it('accepts apis-tem.usps.com (sandbox)', () => {
+            process.env.USPS_API_BASE_URL = 'https://apis-tem.usps.com';
+            (() => envCheck()).should.not.throw();
+        });
+
+        it('accepts apis.usps.com (production)', () => {
+            process.env.USPS_API_BASE_URL = 'https://apis.usps.com';
+            (() => envCheck()).should.not.throw();
+        });
+
+        it('rejects an unknown USPS host', () => {
+            process.env.USPS_API_BASE_URL = 'https://example.com';
+            (() => envCheck()).should.throw(/USPS_API_BASE_URL must point at one of/);
+        });
+
+        it('rejects a non-URL string', () => {
+            process.env.USPS_API_BASE_URL = 'not-a-url';
+            (() => envCheck()).should.throw(/USPS_API_BASE_URL is not a valid URL/);
+        });
+
+        it('rejects when USPS_CLIENT_ID is missing', () => {
+            delete process.env.USPS_CLIENT_ID;
+            (() => envCheck()).should.throw(/Missing required env var: USPS_CLIENT_ID/);
+        });
+
+        it('rejects when USPS_CLIENT_SECRET is missing', () => {
+            delete process.env.USPS_CLIENT_SECRET;
+            (() => envCheck()).should.throw(/Missing required env var: USPS_CLIENT_SECRET/);
+        });
+    });
 });
