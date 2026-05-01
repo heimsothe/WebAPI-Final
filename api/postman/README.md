@@ -4,8 +4,10 @@ Demonstrates the chained user workflow against the deployed Package Tracker API.
 
 ## Files
 
-- `PackageTracker.postman_collection.json` - the collection (4 folders, 18 requests).
-- `PackageTracker.postman_environment.json` - environment variables (host).
+- `Package Tracker.postman_collection.json` - the collection (18 requests, prefixed `[Auth]` / `[Gmail]` / `[Packages]` / `[Exclusions]`).
+- `Package Tracker (Production).postman_environment.json` - environment variables (host).
+
+Both files are byte-identical to what Postman exports from the cloud collection at https://go.postman.co/collection/49915090-f269da5e-473f-47cc-8ceb-537bfa4d85d9 . Re-exporting from Postman should produce a zero-diff against these files.
 
 ## How to import
 
@@ -18,17 +20,16 @@ Demonstrates the chained user workflow against the deployed Package Tracker API.
 
 ### Manual demo run
 
-Click "Run Collection" in Postman, step through each request. At "Gmail > POST /api/gmail/connect", copy the returned `auth_url` into a browser, complete Google's consent flow, then continue running the collection.
+Click "Run Collection" in Postman, step through each request. At "[Gmail] POST /api/gmail/connect", copy the returned `authorization_url` into a browser, complete Google's consent flow, then continue running the collection.
 
-### Newman CLI (optional)
+### Newman CLI
 
 ```bash
-npx newman run PackageTracker.postman_collection.json \
-    -e PackageTracker.postman_environment.json \
-    --folder Auth
+npx newman run "Package Tracker.postman_collection.json" \
+    -e "Package Tracker (Production).postman_environment.json"
 ```
 
-Skips the Gmail folder because the OAuth callback requires a browser. Useful for CI.
+Runs all 18 requests end-to-end against the deployed API. Expected outcome: 35/35 assertions pass.
 
 ## Variables captured at runtime
 

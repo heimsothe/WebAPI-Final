@@ -67,4 +67,4 @@ The free-tier dyno spins down after ~15 minutes of inactivity. The first request
 
 ### Postman test collection
 
-`api/postman/PackageTracker.postman_collection.json` exercises the chained workflow (auth, Gmail OAuth, packages, exclusions). See `api/postman/README.md` for import and run instructions.
+`api/postman/Package Tracker.postman_collection.json` exercises the chained workflow (auth, Gmail OAuth, packages, exclusions). See `api/postman/README.md` for import and run instructions.
