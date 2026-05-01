@@ -87,3 +87,47 @@ describe('<AppShell>', () => {
     expect(screen.getByTestId('signin-stub')).toBeInTheDocument();
   });
 });
+
+describe('AppShell toast rendering', () => {
+  it('renders a Toast for each entry in state.ui.toasts and the Undo button fires action.onClick', async () => {
+    // Plan deviation: the plan also imports packagesReducer here, but Task 7
+    // has not created that slice yet, and this test does not exercise package
+    // state. Slimming imports keeps the suite fully green between Tasks 6 and 7.
+    const uiReducer = require('../../store/uiSlice').default;
+    const { pushToast } = require('../../store/uiSlice');
+    const { waitFor } = require('@testing-library/react');
+
+    const onUndo = jest.fn();
+    const { user, store } = renderWithProviders(
+      <Routes>
+        <Route element={<AppShell />}>
+          <Route path="/" element={<div>home</div>} />
+        </Route>
+      </Routes>,
+      {
+        reducer: { user: userReducer, ui: uiReducer },
+        preloadedState: {
+          user: {
+            user: { id: '1', email: 'me@example.com', display_name: 'Me', created_at: '' },
+            token: 'tok',
+            status: 'idle',
+            error: null,
+            justForceLoggedOut: false,
+          },
+          ui: { toasts: [] },
+        },
+      }
+    );
+    store.dispatch(
+      pushToast({
+        variant: 'secondary',
+        message: 'Hidden. Find it in Settings > Hidden.',
+        action: { label: 'Undo', onClick: onUndo },
+      })
+    );
+    const undoButton = await screen.findByRole('button', { name: 'Undo' });
+    await user.click(undoButton);
+    expect(onUndo).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(store.getState().ui.toasts).toHaveLength(0));
+  });
+});
