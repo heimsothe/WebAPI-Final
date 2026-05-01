@@ -15,6 +15,8 @@ RequireAuth + RedirectIfAuthed.
 import { screen } from '@testing-library/react';
 import App from './App';
 import userReducer from './store/userSlice';
+import packagesReducer from './store/packagesSlice';
+import uiReducer from './store/uiSlice';
 import { renderWithProviders } from './test-utils/renderWithProviders';
 
 const SIGNED_IN = {
@@ -32,11 +34,17 @@ const SIGNED_OUT = {
   justForceLoggedOut: false,
 };
 
+// Slice 3 deviation: the plan intro claimed App.test.js was already updated
+// by Slice 2 to scope on AppShell content; it was not. The DashboardPage
+// now reads state.packages and dispatches fetchPackages on mount, so this
+// helper registers all three reducers and the SIGNED_IN cases assert on
+// the new dashboard's static "Active packages" h2 instead of the removed
+// page-dashboard testid.
 function renderApp(route, userState) {
   return renderWithProviders(<App />, {
     route,
-    reducer: { user: userReducer },
-    preloadedState: { user: userState },
+    reducer: { user: userReducer, packages: packagesReducer, ui: uiReducer },
+    preloadedState: { user: userState, ui: { toasts: [] } },
   });
 }
 
@@ -55,17 +63,17 @@ describe('App slice 2 routing', () => {
 
   it('redirects /signin to / when already signed in', () => {
     renderApp('/signin', SIGNED_IN);
-    expect(screen.getByTestId('page-dashboard')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /active packages/i })).toBeInTheDocument();
   });
 
   it('redirects /signup to / when already signed in', () => {
     renderApp('/signup', SIGNED_IN);
-    expect(screen.getByTestId('page-dashboard')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /active packages/i })).toBeInTheDocument();
   });
 
-  it('renders the dashboard placeholder at / when signed in', () => {
+  it('renders the dashboard at / when signed in', () => {
     renderApp('/', SIGNED_IN);
-    expect(screen.getByTestId('page-dashboard')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /active packages/i })).toBeInTheDocument();
   });
 
   it('redirects / to /signin when signed out', () => {
