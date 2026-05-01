@@ -12,11 +12,15 @@ patchPackage migrates an item across buckets on the hidden-flag flip;
 deletePackage removes from whichever bucket holds it; refreshPackage
 single-flights via refreshingId and updates state.detail in place.
 
-createStatus and createError are present in initial state for Slice 4,
-which will add the createPackage thunk + reducer cases plus the
-api/packages.js createPackage wrapper. Slice 3 deliberately does NOT
-declare createPackage here because importing a non-existent
-packagesApi.createPackage would crash the slice on first dispatch.
+The createPackage thunk + cases were added in Slice 4 alongside the
+new resetCreate reducer (the modal dispatches it on close to clear any
+prior rejected dispatch's error payload before reopening). The reducer
+deliberately does NOT upsert into items on createPackage.fulfilled:
+the modal dispatches fetchPackages({ hidden: false }) on success, which
+overwrites the bucket via fetchPackages.fulfilled. Doing both an upsert
+and a refetch would either duplicate the row briefly or require a
+detail-to-list shape conversion in the reducer; the spec's "refetch
+canonical" path avoids both.
  */
 
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
@@ -94,6 +98,17 @@ export const refreshPackage = createAsyncThunk(
   }
 );
 
+export const createPackage = createAsyncThunk(
+  'packages/create',
+  async (input, { rejectWithValue }) => {
+    try {
+      return await packagesApi.createPackage(input);
+    } catch (e) {
+      return rejectWithValue(apiErrorPayload(e));
+    }
+  }
+);
+
 function removeFromBucket(bucket, id) {
   const i = bucket.findIndex((p) => p.id === id);
   if (i >= 0) bucket.splice(i, 1);
@@ -108,7 +123,12 @@ function upsertInBucket(bucket, pkg) {
 const packagesSlice = createSlice({
   name: 'packages',
   initialState,
-  reducers: {},
+  reducers: {
+    resetCreate(state) {
+      state.createStatus = 'idle';
+      state.createError = null;
+    },
+  },
   extraReducers: (builder) => {
     builder
       .addCase(fetchPackages.pending, (state) => {
@@ -180,8 +200,23 @@ const packagesSlice = createSlice({
       })
       .addCase(refreshPackage.rejected, (state) => {
         state.refreshingId = null;
+      })
+      .addCase(createPackage.pending, (state) => {
+        state.createStatus = 'loading';
+        state.createError = null;
+      })
+      .addCase(createPackage.fulfilled, (state) => {
+        state.createStatus = 'succeeded';
+      })
+      .addCase(createPackage.rejected, (state, action) => {
+        state.createStatus = 'failed';
+        state.createError = action.payload || {
+          code: 'INTERNAL',
+          message: action.error?.message,
+        };
       });
   },
 });
 
+export const { resetCreate } = packagesSlice.actions;
 export default packagesSlice.reducer;

@@ -21,11 +21,9 @@ import packagesReducer, {
   patchPackage,
   deletePackage,
   refreshPackage,
+  createPackage,
+  resetCreate,
 } from './packagesSlice';
-
-// Note: createPackage thunk + reducer cases are added in Slice 4 alongside the
-// api wrapper. Slice 3's slice exposes the createStatus/createError state fields
-// (consumed by Slice 4) but does NOT export a createPackage thunk yet.
 
 const BASE = process.env.REACT_APP_API_BASE_URL;
 
@@ -333,5 +331,163 @@ describe('refreshPackage', () => {
     const store = buildStore();
     await store.dispatch(refreshPackage('5'));
     expect(store.getState().packages.refreshingId).toBe(null);
+  });
+});
+
+describe('createPackage thunk and resetCreate reducer', () => {
+  it('createPackage.pending sets createStatus to loading and clears createError', () => {
+    const store = buildStore({
+      items: [],
+      hiddenItems: [],
+      detail: null,
+      listStatus: 'idle',
+      listError: null,
+      detailStatus: 'idle',
+      detailError: null,
+      createStatus: 'failed',
+      createError: { code: 'CONFLICT', message: "You're already tracking this package." },
+      refreshingId: null,
+    });
+    store.dispatch({ type: createPackage.pending.type });
+    const s = store.getState().packages;
+    expect(s.createStatus).toBe('loading');
+    expect(s.createError).toBeNull();
+  });
+
+  it('createPackage.fulfilled sets createStatus to succeeded and leaves items alone', () => {
+    const store = buildStore();
+    const newPackage = makePackageDetail({ id: '99', tracking_number: '774988123312' });
+    store.dispatch({ type: createPackage.fulfilled.type, payload: newPackage });
+    const s = store.getState().packages;
+    expect(s.createStatus).toBe('succeeded');
+    expect(s.createError).toBeNull();
+    // Per architectural decision F: the slice does not upsert into items.
+    // The modal calls fetchPackages({ hidden: false }) on success, which
+    // overwrites the bucket via fetchPackages.fulfilled.
+    expect(s.items).toEqual([]);
+  });
+
+  it('createPackage.rejected sets createStatus to failed and stores the error payload', () => {
+    const store = buildStore();
+    const errorPayload = {
+      code: 'EXCLUDED',
+      message: 'This tracking number is on your exclusion list.',
+    };
+    store.dispatch({ type: createPackage.rejected.type, payload: errorPayload });
+    const s = store.getState().packages;
+    expect(s.createStatus).toBe('failed');
+    expect(s.createError).toEqual(errorPayload);
+  });
+
+  it('resetCreate clears both createStatus and createError', () => {
+    const store = buildStore({
+      items: [],
+      hiddenItems: [],
+      detail: null,
+      listStatus: 'idle',
+      listError: null,
+      detailStatus: 'idle',
+      detailError: null,
+      createStatus: 'failed',
+      createError: { code: 'CONFLICT', message: "You're already tracking this package." },
+      refreshingId: null,
+    });
+    store.dispatch(resetCreate());
+    const s = store.getState().packages;
+    expect(s.createStatus).toBe('idle');
+    expect(s.createError).toBeNull();
+  });
+
+  it('createPackage thunk dispatches a POST and resolves with the detail-shape payload', async () => {
+    let receivedBody;
+    server.use(
+      rest.post(`${BASE}/api/packages`, async (req, res, ctx) => {
+        receivedBody = await req.json();
+        return res(
+          ctx.status(201),
+          ctx.json({
+            success: true,
+            data: makePackageDetail({
+              id: '500',
+              tracking_number: receivedBody.tracking_number,
+              carrier: receivedBody.carrier,
+              nickname: receivedBody.nickname ?? null,
+              events: [],
+            }),
+          })
+        );
+      })
+    );
+    const store = buildStore();
+    const action = await store.dispatch(
+      createPackage({
+        tracking_number: '774988123312',
+        carrier: 'FEDEX',
+        nickname: 'Test',
+      })
+    );
+    expect(action.type).toBe(createPackage.fulfilled.type);
+    expect(receivedBody).toEqual({
+      tracking_number: '774988123312',
+      carrier: 'FEDEX',
+      nickname: 'Test',
+    });
+    expect(action.payload.id).toBe('500');
+    expect(action.payload.tracking_number).toBe('774988123312');
+    expect(store.getState().packages.createStatus).toBe('succeeded');
+  });
+
+  it('createPackage thunk on 409 EXCLUDED rejects with the error envelope', async () => {
+    server.use(
+      rest.post(`${BASE}/api/packages`, (req, res, ctx) =>
+        res(
+          ctx.status(409),
+          ctx.json({
+            success: false,
+            error: {
+              code: 'EXCLUDED',
+              message: 'This tracking number is on your exclusion list.',
+            },
+          })
+        )
+      )
+    );
+    const store = buildStore();
+    const action = await store.dispatch(createPackage({ tracking_number: 'X', carrier: 'FEDEX' }));
+    expect(action.type).toBe(createPackage.rejected.type);
+    expect(action.payload).toEqual({
+      code: 'EXCLUDED',
+      message: 'This tracking number is on your exclusion list.',
+      details: undefined,
+    });
+    expect(store.getState().packages.createStatus).toBe('failed');
+    expect(store.getState().packages.createError.code).toBe('EXCLUDED');
+  });
+
+  it('createPackage thunk on 422 VALIDATION_FAILED preserves details', async () => {
+    server.use(
+      rest.post(`${BASE}/api/packages`, (req, res, ctx) =>
+        res(
+          ctx.status(422),
+          ctx.json({
+            success: false,
+            error: {
+              code: 'VALIDATION_FAILED',
+              message: 'Validation failed.',
+              details: [
+                { field: 'tracking_number', message: 'tracking_number must be 1 to 64 chars.' },
+              ],
+            },
+          })
+        )
+      )
+    );
+    const store = buildStore();
+    const action = await store.dispatch(createPackage({ tracking_number: '', carrier: 'FEDEX' }));
+    expect(action.type).toBe(createPackage.rejected.type);
+    expect(action.payload.code).toBe('VALIDATION_FAILED');
+    expect(action.payload.details).toEqual([
+      { field: 'tracking_number', message: 'tracking_number must be 1 to 64 chars.' },
+    ]);
   });
 });
