@@ -51,7 +51,10 @@ export default function PackageRow({ pkg, onHide, onDelete }) {
         <small className="text-muted">{relTime(updated)}</small>
       </td>
       <td className="text-end">
-        <Dropdown align="end">
+        {/* popperConfig.strategy='fixed' floats the menu above the table-responsive
+            overflow context, which would otherwise clip a menu rendered near the top
+            row to the table's visible height. */}
+        <Dropdown align="end" popperConfig={{ strategy: 'fixed' }}>
           <Dropdown.Toggle
             variant="link"
             size="sm"
