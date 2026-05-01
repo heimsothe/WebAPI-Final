@@ -397,3 +397,38 @@ describe('integration: DELETE /api/packages/:id', () => {
     // proves both writes happen on success (the wiring is correct);
     // the framework's rollback-on-error guarantee covers the rest.
 });
+
+describe('integration: tracking_url field on package responses', () => {
+    it('GET /api/packages includes tracking_url for each package', async () => {
+        const user = await seedUser();
+        await seedPackage(user.id, { carrier: 'FEDEX', tracking_number: '522005684672' });
+        await seedPackage(user.id, { carrier: 'UPS', tracking_number: '1ZR4115V0308717538' });
+
+        const res = await chai.request(app)
+            .get('/api/packages')
+            .set(authHeader(tokenFor(user)));
+
+        res.should.have.status(200);
+        res.body.data.should.have.lengthOf(2);
+
+        const fedexPkg = res.body.data.find(p => p.carrier === 'FEDEX');
+        const upsPkg = res.body.data.find(p => p.carrier === 'UPS');
+
+        fedexPkg.tracking_url.should.equal('https://www.fedex.com/fedextrack/?trknbr=522005684672');
+        upsPkg.tracking_url.should.equal('https://www.ups.com/track?tracknum=1ZR4115V0308717538');
+    });
+
+    it('GET /api/packages/:id includes tracking_url', async () => {
+        const user = await seedUser();
+        const pkg = await seedPackage(user.id, { carrier: 'USPS', tracking_number: '9400111202555842761523' });
+
+        const res = await chai.request(app)
+            .get(`/api/packages/${pkg.id}`)
+            .set(authHeader(tokenFor(user)));
+
+        res.should.have.status(200);
+        res.body.data.tracking_url.should.equal(
+            'https://tools.usps.com/go/TrackConfirmAction?tLabels=9400111202555842761523'
+        );
+    });
+});

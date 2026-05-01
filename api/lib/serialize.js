@@ -11,6 +11,9 @@ the wire format matches URL params), and omit fields that should never
 leave the server (password_hash, foreign-key user_id).
  */
 
+const { getTrackingUrlTemplate } = require('./carrierTemplates');
+const { buildTrackingUrl } = require('./buildTrackingUrl');
+
 function serializeUser(user) {
     return {
         id: user.id.toString(),
@@ -33,10 +36,12 @@ function serializeEvent(ev) {
 
 function serializePackage(pkg) {
     const latest = pkg.tracking_events && pkg.tracking_events[0];
+    const template = getTrackingUrlTemplate(pkg.carrier);
     return {
         id: pkg.id.toString(),
         carrier: pkg.carrier,
         tracking_number: pkg.tracking_number,
+        tracking_url: template ? buildTrackingUrl(template, pkg.tracking_number) : null,
         nickname: pkg.nickname,
         hidden: pkg.hidden,
         source: pkg.source,
