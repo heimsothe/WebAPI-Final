@@ -18,7 +18,6 @@ function envCheck() {
         'GOOGLE_REDIRECT_URI', 'FRONTEND_URL',
         'TOKEN_ENCRYPTION_KEY',
         'FEDEX_API_BASE_URL', 'FEDEX_CLIENT_ID', 'FEDEX_CLIENT_SECRET',
-        'USPS_API_BASE_URL', 'USPS_CLIENT_ID', 'USPS_CLIENT_SECRET',
     ];
     for (const name of required) {
         if (!process.env[name]) {
@@ -51,25 +50,6 @@ function envCheck() {
         throw new Error(
             `FEDEX_API_BASE_URL must point at one of: ${allowedFedexHosts.join(', ')}. ` +
             `Got host: ${fedexUrl.host}`
-        );
-    }
-
-    // Host-shape check on USPS_API_BASE_URL. apis-tem.usps.com is the USPS
-    // sandbox / Test Environment Manager. Same typo-protection rationale as
-    // FedEx above.
-    const allowedUspsHosts = ['apis.usps.com', 'apis-tem.usps.com'];
-    let uspsUrl;
-    try {
-        uspsUrl = new URL(process.env.USPS_API_BASE_URL);
-    } catch (err) {
-        throw new Error(
-            `USPS_API_BASE_URL is not a valid URL: ${process.env.USPS_API_BASE_URL}`
-        );
-    }
-    if (!allowedUspsHosts.includes(uspsUrl.host)) {
-        throw new Error(
-            `USPS_API_BASE_URL must point at one of: ${allowedUspsHosts.join(', ')}. ` +
-            `Got host: ${uspsUrl.host}`
         );
     }
 }
