@@ -23,6 +23,12 @@ const OVERRIDES = {
     CARRIER_NUMBER_NOT_FOUND:
       "The carrier doesn't recognize this tracking number yet. It may take a few hours after a label is created.",
   },
+  create: {
+    CARRIER_API_UNAVAILABLE:
+      "Couldn't reach the carrier to verify this number. Check your input and try again.",
+    CARRIER_NUMBER_NOT_FOUND:
+      "The carrier doesn't recognize this tracking number yet. Double-check it, or try again in an hour or two if the label is brand new.",
+  },
 };
 
 export function friendlyMessage(error, { context } = {}) {
