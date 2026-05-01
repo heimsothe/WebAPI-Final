@@ -45,6 +45,7 @@ chai.should();
 // use the same instance. Phase 2 spec: "Module-level singleton.
 // Every other file imports { prisma } from here."
 const { prisma } = require('../lib/prisma');
+const { loadCarrierTemplates } = require('../lib/carrierTemplates');
 
 // Export for tests that need direct access (e.g., data-layer assertions).
 module.exports = { prisma };
@@ -58,12 +59,15 @@ before(async function () {
     if (count === 0) {
         await prisma.carrier.createMany({
             data: [
-                { code: 'UPS',   display_name: 'United Parcel Service' },
-                { code: 'FEDEX', display_name: 'FedEx' },
-                { code: 'USPS',  display_name: 'United States Postal Service' },
+                { code: 'UPS',   display_name: 'United Parcel Service',     tracking_url_template: 'https://www.ups.com/track?tracknum={tracking_number}' },
+                { code: 'FEDEX', display_name: 'FedEx',                     tracking_url_template: 'https://www.fedex.com/fedextrack/?trknbr={tracking_number}' },
+                { code: 'USPS',  display_name: 'United States Postal Service', tracking_url_template: 'https://tools.usps.com/go/TrackConfirmAction?tLabels={tracking_number}' },
             ],
         });
     }
+    // Populate the in-memory template cache so any test that exercises
+    // serializePackage finds the templates loaded.
+    await loadCarrierTemplates();
 });
 
 // Per-test isolation. TRUNCATE with CASCADE follows the schema.prisma cascade
