@@ -17,16 +17,26 @@ import userEvent from '@testing-library/user-event';
 import { Provider } from 'react-redux';
 import { MemoryRouter } from 'react-router-dom';
 
+// configureStore({ reducer: {} }) calls combineReducers({}) and warns. When the
+// caller does not pass slices, fall through to a no-op identity reducer instead.
+const identityReducer = (state = {}) => state;
+
 export function renderWithProviders(ui, { preloadedState = {}, route = '/', reducer = {} } = {}) {
+  const hasSlices = Object.keys(reducer).length > 0;
   const store = configureStore({
-    reducer,
+    reducer: hasSlices ? reducer : identityReducer,
     preloadedState,
   });
 
   function Wrapper({ children }) {
     return (
       <Provider store={store}>
-        <MemoryRouter initialEntries={[route]}>{children}</MemoryRouter>
+        <MemoryRouter
+          initialEntries={[route]}
+          future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+        >
+          {children}
+        </MemoryRouter>
       </Provider>
     );
   }
