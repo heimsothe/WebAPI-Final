@@ -1,17 +1,31 @@
+/*
+- File: index.js
+- Author: Elijah Heimsoth
+- Date: 05/01/2026
+- Assignment: WebAPI-FinalProject
+- Class: CSCI 3916
+
+Description: SPA entry point. Wraps App in Redux Provider and BrowserRouter.
+The setApiHandlers wiring for the 401 interceptor (per spec Section 10.1
+architectural decision A) is added in Slice 2 once api/client.js exports
+setApiHandlers and userSlice exports forceLogout.
+ */
+
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import './index.css';
+import { Provider } from 'react-redux';
+import { BrowserRouter } from 'react-router-dom';
 import App from './App';
-import reportWebVitals from './reportWebVitals';
+import { store } from './store';
+import './styles/custom.scss';
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
   <React.StrictMode>
-    <App />
+    <Provider store={store}>
+      <BrowserRouter>
+        <App />
+      </BrowserRouter>
+    </Provider>
   </React.StrictMode>
 );
-
-// If you want to start measuring performance in your app, pass a function
-// to log results (for example: reportWebVitals(console.log))
-// or send to an analytics endpoint. Learn more: https://bit.ly/CRA-vitals
-reportWebVitals();
