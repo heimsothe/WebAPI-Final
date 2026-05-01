@@ -60,11 +60,12 @@ model OauthCredential {
 }
 
 model Carrier {
-  code         String   @id
-  display_name String
-  active       Boolean  @default(true)
-  created_at   DateTime @default(now())
-  updated_at   DateTime @updatedAt
+  code                  String   @id
+  display_name          String
+  active                Boolean  @default(true)
+  tracking_url_template String
+  created_at            DateTime @default(now())
+  updated_at            DateTime @updatedAt
 
   packages   Package[]
   exclusions ExcludedTrackingNumber[]
