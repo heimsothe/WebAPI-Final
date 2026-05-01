@@ -25,15 +25,13 @@ const exclusionsRouter = require('./routes/exclusions');
 const gmailRouter = require('./routes/gmail');
 const googleCallbackRouter = require('./routes/googleCallback');
 const { errorHandler } = require('./middleware/errorHandler');
+const { loadCarrierTemplates } = require('./lib/carrierTemplates');
 
 // Carrier registry boot. Each adapter must be registered before any
 // route handler can call registry.getTrackingInfoWithFallback().
 const carrierRegistry = require('./lib/carriers/registry');
 const fedexAdapter = require('./lib/carriers/fedex/adapter');
 carrierRegistry.register(fedexAdapter);
-// Phase 5 will append:
-// carrierRegistry.register(require('./lib/carriers/ups/adapter'));
-// carrierRegistry.register(require('./lib/carriers/usps/adapter'));
 
 envCheck();
 
@@ -54,7 +52,15 @@ app.use(errorHandler);
 
 const PORT = process.env.PORT || 8080;
 if (require.main === module) {
-    app.listen(PORT, () => console.log(`Listening on ${PORT}`));
+    (async () => {
+        try {
+            await loadCarrierTemplates();
+            app.listen(PORT, () => console.log(`Listening on ${PORT}`));
+        } catch (err) {
+            console.error('Failed to load carrier templates at boot:', err.message);
+            process.exit(1);
+        }
+    })();
 }
 
 module.exports = app;
