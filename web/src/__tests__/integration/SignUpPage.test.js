@@ -80,7 +80,7 @@ describe('<SignUpPage>', () => {
   it('omits display_name from the request body when blank', async () => {
     let receivedBody;
     server.use(
-      rest.post(`${process.env.REACT_APP_API_BASE_URL}/api/auth/signup`, async (req, res, ctx) => {
+      rest.post(`${process.env.REACT_APP_API_BASE_URL}/auth/signup`, async (req, res, ctx) => {
         receivedBody = await req.json();
         return res(
           ctx.status(201),

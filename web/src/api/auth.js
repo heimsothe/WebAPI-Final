@@ -5,7 +5,7 @@
 - Assignment: WebAPI-FinalProject
 - Class: CSCI 3916
 
-Description: Per-resource API module for /api/auth/*. Both calls pass
+Description: Per-resource API module for /auth/*. Both calls pass
 auth: false so the request goes out without any stale token attached;
 the API itself is what produces the token in the response body.
  */
@@ -13,7 +13,7 @@ the API itself is what produces the token in the response body.
 import { apiFetch } from './client';
 
 export function signin({ email, password }) {
-  return apiFetch('/api/auth/signin', {
+  return apiFetch('/auth/signin', {
     method: 'POST',
     body: { email, password },
     auth: false,
@@ -21,7 +21,7 @@ export function signin({ email, password }) {
 }
 
 export function signup({ email, password, display_name }) {
-  return apiFetch('/api/auth/signup', {
+  return apiFetch('/auth/signup', {
     method: 'POST',
     body: { email, password, display_name },
     auth: false,

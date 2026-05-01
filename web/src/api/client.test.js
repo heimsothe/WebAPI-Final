@@ -38,13 +38,13 @@ describe('apiFetch', () => {
   it('omits the Authorization header when auth: false', async () => {
     let capturedAuth = 'unset';
     server.use(
-      rest.post(`${BASE}/api/auth/signin`, (req, res, ctx) => {
+      rest.post(`${BASE}/auth/signin`, (req, res, ctx) => {
         capturedAuth = req.headers.get('Authorization');
         return res(ctx.json({ success: true, data: { token: 't' } }));
       })
     );
     localStorage.setItem('pkg_tracker_token', 'should-not-be-sent');
-    await apiFetch('/api/auth/signin', {
+    await apiFetch('/auth/signin', {
       method: 'POST',
       body: { email: 'x@y.z', password: 'pw' },
       auth: false,
@@ -115,7 +115,7 @@ describe('apiFetch', () => {
 
   it('does NOT fire onUnauthorized when auth was false', async () => {
     server.use(
-      rest.post(`${BASE}/api/auth/signin`, (req, res, ctx) =>
+      rest.post(`${BASE}/auth/signin`, (req, res, ctx) =>
         res(
           ctx.status(401),
           ctx.json({
@@ -129,7 +129,7 @@ describe('apiFetch', () => {
     setApiHandlers({ onUnauthorized });
 
     await expect(
-      apiFetch('/api/auth/signin', {
+      apiFetch('/auth/signin', {
         method: 'POST',
         body: { email: 'x@y.z', password: 'wrong' },
         auth: false,

@@ -5,7 +5,7 @@
 - Assignment: WebAPI-FinalProject
 - Class: CSCI 3916
 
-Description: MSW handlers for /api/auth/*. Default handlers return 200/201
+Description: MSW handlers for /auth/*. Default handlers return 200/201
 with a fresh token; tests opt into errorVariants via server.use(...) when
 they need a specific failure mode (INVALID_CREDENTIALS, EMAIL_TAKEN, etc.).
  */
@@ -16,7 +16,7 @@ import { makeUser } from '../factories';
 const BASE = process.env.REACT_APP_API_BASE_URL;
 
 export const handlers = [
-  rest.post(`${BASE}/api/auth/signin`, async (req, res, ctx) => {
+  rest.post(`${BASE}/auth/signin`, async (req, res, ctx) => {
     const { email } = await req.json();
     return res(
       ctx.status(200),
@@ -27,7 +27,7 @@ export const handlers = [
     );
   }),
 
-  rest.post(`${BASE}/api/auth/signup`, async (req, res, ctx) => {
+  rest.post(`${BASE}/auth/signup`, async (req, res, ctx) => {
     const { email, display_name } = await req.json();
     return res(
       ctx.status(201),
@@ -43,7 +43,7 @@ export const handlers = [
 ];
 
 export const errorVariants = {
-  signinInvalidCredentials: rest.post(`${BASE}/api/auth/signin`, (req, res, ctx) =>
+  signinInvalidCredentials: rest.post(`${BASE}/auth/signin`, (req, res, ctx) =>
     res(
       ctx.status(401),
       ctx.json({
@@ -52,7 +52,7 @@ export const errorVariants = {
       })
     )
   ),
-  signinValidationFailed: rest.post(`${BASE}/api/auth/signin`, (req, res, ctx) =>
+  signinValidationFailed: rest.post(`${BASE}/auth/signin`, (req, res, ctx) =>
     res(
       ctx.status(400),
       ctx.json({
@@ -65,7 +65,7 @@ export const errorVariants = {
       })
     )
   ),
-  signupEmailTaken: rest.post(`${BASE}/api/auth/signup`, (req, res, ctx) =>
+  signupEmailTaken: rest.post(`${BASE}/auth/signup`, (req, res, ctx) =>
     res(
       ctx.status(409),
       ctx.json({
@@ -74,7 +74,7 @@ export const errorVariants = {
       })
     )
   ),
-  signupValidationFailed: rest.post(`${BASE}/api/auth/signup`, (req, res, ctx) =>
+  signupValidationFailed: rest.post(`${BASE}/auth/signup`, (req, res, ctx) =>
     res(
       ctx.status(400),
       ctx.json({
@@ -87,5 +87,5 @@ export const errorVariants = {
       })
     )
   ),
-  network: rest.post(`${BASE}/api/auth/signin`, (req, res) => res.networkError('offline')),
+  network: rest.post(`${BASE}/auth/signin`, (req, res) => res.networkError('offline')),
 };
