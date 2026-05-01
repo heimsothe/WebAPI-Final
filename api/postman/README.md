@@ -7,7 +7,7 @@ Demonstrates the chained user workflow against the deployed Package Tracker API.
 - `Package Tracker.postman_collection.json` - the collection (18 requests, prefixed `[Auth]` / `[Gmail]` / `[Packages]` / `[Exclusions]`).
 - `Package Tracker (Production).postman_environment.json` - environment variables (host).
 
-Both files are byte-identical to what Postman exports from the cloud collection at https://go.postman.co/collection/49915090-f269da5e-473f-47cc-8ceb-537bfa4d85d9 . Re-exporting from Postman should produce a zero-diff against these files.
+Both files are byte-identical to what Postman exports from the cloud collection at https://go.postman.co/collection/49915090-d691edcd-2f21-4af2-838c-08591838653b . Re-exporting from Postman should produce a zero-diff against these files.
 
 ## How to import
 
