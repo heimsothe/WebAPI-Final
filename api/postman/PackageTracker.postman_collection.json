@@ -36,7 +36,7 @@
                             "type": "text/javascript",
                             "exec": [
                                 "pm.test('Status 201', () => pm.response.to.have.status(201));",
-                                "const data = pm.response.json().data;",
+                                "var data = pm.response.json().data;",
                                 "pm.collectionVariables.set('token', data.token);",
                                 "pm.test('Returns token', () => pm.expect(data.token).to.be.a('string'));"
                             ]
@@ -117,7 +117,7 @@
                             "type": "text/javascript",
                             "exec": [
                                 "pm.test('Status 200', () => pm.response.to.have.status(200));",
-                                "const data = pm.response.json().data;",
+                                "var data = pm.response.json().data;",
                                 "if (data.connections && data.connections.length > 0) {",
                                 "    pm.collectionVariables.set('connection_id', data.connections[0].id);",
                                 "}"
@@ -143,7 +143,7 @@
                             "type": "text/javascript",
                             "exec": [
                                 "pm.test('Status 200', () => pm.response.to.have.status(200));",
-                                "pm.test('Returns auth_url', () => pm.expect(pm.response.json().data.auth_url).to.be.a('string'));"
+                                "pm.test('Returns authorization_url', () => pm.expect(pm.response.json().data.authorization_url).to.be.a('string'));"
                             ]
                         }
                     }]
@@ -165,7 +165,7 @@
                             "type": "text/javascript",
                             "exec": [
                                 "pm.test('Status 200', () => pm.response.to.have.status(200));",
-                                "const data = pm.response.json().data;",
+                                "var data = pm.response.json().data;",
                                 "if (data.connections && data.connections.length > 0) {",
                                 "    pm.collectionVariables.set('connection_id', data.connections[0].id);",
                                 "}"
@@ -178,6 +178,7 @@
                     "request": {
                         "method": "POST",
                         "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+                        "description": "Returns 200 (with sync results) when the caller has a connected Gmail account, or 409 GMAIL_NOT_CONNECTED when they do not. The collection's signup-based auth means the running user is fresh and has no connection, so 409 is the typical outcome here.",
                         "url": {
                             "raw": "{{host}}/api/gmail/sync",
                             "host": ["{{host}}"],
@@ -189,7 +190,10 @@
                         "script": {
                             "type": "text/javascript",
                             "exec": [
-                                "pm.test('Status 200', () => pm.response.to.have.status(200));"
+                                "pm.test('Status 200 or 409', () => pm.expect([200, 409]).to.include(pm.response.code));",
+                                "if (pm.response.code === 409) {",
+                                "    pm.test('Code is GMAIL_NOT_CONNECTED', () => pm.expect(pm.response.json().error.code).to.equal('GMAIL_NOT_CONNECTED'));",
+                                "}"
                             ]
                         }
                     }]
@@ -245,7 +249,7 @@
                             "type": "text/javascript",
                             "exec": [
                                 "pm.test('Status 201', () => pm.response.to.have.status(201));",
-                                "const data = pm.response.json().data;",
+                                "var data = pm.response.json().data;",
                                 "pm.collectionVariables.set('package_id', data.id);",
                                 "pm.test('Has tracking_url', () => pm.expect(data.tracking_url).to.include('fedex.com'));",
                                 "pm.test('Has events', () => pm.expect(data.events.length).to.be.greaterThan(0));"
@@ -277,7 +281,7 @@
                             "type": "text/javascript",
                             "exec": [
                                 "pm.test('Status 201 (6.A skips registry for UPS)', () => pm.response.to.have.status(201));",
-                                "const data = pm.response.json().data;",
+                                "var data = pm.response.json().data;",
                                 "pm.collectionVariables.set('ups_package_id', data.id);",
                                 "pm.test('Stored as UPS', () => pm.expect(data.carrier).to.equal('UPS'));",
                                 "pm.test('No events', () => pm.expect(data.events).to.have.lengthOf(0));",
@@ -426,7 +430,7 @@
                             "type": "text/javascript",
                             "exec": [
                                 "pm.test('Status 200', () => pm.response.to.have.status(200));",
-                                "const data = pm.response.json().data;",
+                                "var data = pm.response.json().data;",
                                 "pm.test('Has the just-deleted UPS exclusion', () => pm.expect(data.length).to.be.greaterThan(0));",
                                 "pm.collectionVariables.set('exclusion_id', data[0].id);"
                             ]
