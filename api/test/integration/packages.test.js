@@ -94,11 +94,13 @@ describe('integration: POST /api/packages', () => {
         const alice = await seedUser();
         const res = await chai.request(app).post('/api/packages')
             .set(authHeader(tokenFor(alice)))
-            .send({ tracking_number: '1Z999AA10123456784', carrier: 'UPS', nickname: 'X' });
+            .send({ tracking_number: '613746411451', carrier: 'FEDEX', nickname: 'X' });
         res.should.have.status(201);
-        res.body.data.tracking_number.should.equal('1Z999AA10123456784');
+        res.body.data.tracking_number.should.equal('613746411451');
         res.body.data.source.should.equal('manual');
-        // Phase 4: synchronous refresh populates events on POST.
+        // Phase 4: synchronous refresh populates events on POST. Phase 6.A only
+        // skips the registry for unregistered carriers, so this FEDEX path
+        // still fires the FEDEX_DELIVERED stub from beforeEach.
         res.body.data.events.length.should.be.greaterThan(0);
         (res.body.data.latest_event === null).should.equal(false);
     });
@@ -217,17 +219,40 @@ describe('integration: POST /api/packages', () => {
         count.should.equal(0);
     });
 
-    it('Phase 4: carrier-changed: user said UPS, FedEx resolved; stored carrier is FEDEX', async () => {
+    it('Phase 6.A: POST with carrier=UPS skips registry; package stored as UPS with no events', async () => {
         const alice = await seedUser();
-        // Default beforeEach stub (FEDEX_DELIVERED) is what we want here, no override.
+        // The describe-level beforeEach has stubbed FEDEX fetchRaw with FEDEX_DELIVERED.
+        // After 6.A, the registry is NOT called for UPS, so the stub should never fire.
 
         const res = await chai.request(app)
             .post('/api/packages')
             .set(authHeader(tokenFor(alice)))
-            .send({ tracking_number: '613746411451', carrier: 'UPS' });
+            .send({ tracking_number: '1ZR4115V0308717538', carrier: 'UPS' });
 
         res.should.have.status(201);
-        res.body.data.carrier.should.equal('FEDEX');
+        res.body.data.carrier.should.equal('UPS');
+        res.body.data.events.should.have.lengthOf(0);
+        (res.body.data.last_checked_at === null).should.equal(true);
+        res.body.data.tracking_url.should.equal('https://www.ups.com/track?tracknum=1ZR4115V0308717538');
+        fedexAdapter.fetchRaw.called.should.equal(false);
+    });
+
+    it('Phase 6.A: POST with carrier=USPS skips registry; package stored as USPS with no events', async () => {
+        const alice = await seedUser();
+
+        const res = await chai.request(app)
+            .post('/api/packages')
+            .set(authHeader(tokenFor(alice)))
+            .send({ tracking_number: '9400111202555842761523', carrier: 'USPS' });
+
+        res.should.have.status(201);
+        res.body.data.carrier.should.equal('USPS');
+        res.body.data.events.should.have.lengthOf(0);
+        (res.body.data.last_checked_at === null).should.equal(true);
+        res.body.data.tracking_url.should.equal(
+            'https://tools.usps.com/go/TrackConfirmAction?tLabels=9400111202555842761523'
+        );
+        fedexAdapter.fetchRaw.called.should.equal(false);
     });
 
     it('Phase 4: excluded number returns 409 BEFORE the registry is called', async () => {

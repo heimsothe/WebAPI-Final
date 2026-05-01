@@ -152,3 +152,21 @@ describe('lib/carriers/registry.getTrackingInfoWithFallback', () => {
         out.result.carrier.should.equal('FEDEX');
     });
 });
+
+describe('lib/carriers/registry.hasAdapter', () => {
+    beforeEach(() => registry._resetForTests());
+
+    it('returns true for a registered adapter', () => {
+        registry.register({ name: 'FEDEX', getTrackingInfo: async () => ({ found: false }) });
+        registry.hasAdapter('FEDEX').should.equal(true);
+    });
+
+    it('returns false for an unregistered adapter', () => {
+        registry.register({ name: 'FEDEX', getTrackingInfo: async () => ({ found: false }) });
+        registry.hasAdapter('UPS').should.equal(false);
+    });
+
+    it('returns false when no adapters are registered', () => {
+        registry.hasAdapter('FEDEX').should.equal(false);
+    });
+});

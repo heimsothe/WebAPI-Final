@@ -76,21 +76,29 @@ router.post('/',
                 'This tracking number is on your exclusion list. Remove it from exclusions before re-adding.');
         }
 
-        // Phase 4: validate the carrier knows this number BEFORE creating the package row.
-        let trackResult, carrierUsed;
-        try {
-            ({ result: trackResult, carrierUsed } =
-                await carrierRegistry.getTrackingInfoWithFallback(tracking_number, carrier));
-        } catch (err) {
-            if (err instanceof carrierRegistry.AdapterFetchError) {
-                throw new HttpError(503, 'CARRIER_API_UNAVAILABLE',
-                    'The carrier API is currently unreachable. Try again in a moment.');
+        // Phase 6.A: only consult the registry if an adapter is actually registered for
+        // this carrier. UPS and USPS were cancelled in Phase 5; for those, skip the
+        // synchronous refresh and create the package with no events.
+        let trackResult = null;
+        let carrierUsed = carrier;
+        let lastCheckedAt = null;
+        if (carrierRegistry.hasAdapter(carrier)) {
+            try {
+                const out = await carrierRegistry.getTrackingInfoWithFallback(tracking_number, carrier);
+                trackResult = out.result;
+                carrierUsed = out.carrierUsed || carrier;
+            } catch (err) {
+                if (err instanceof carrierRegistry.AdapterFetchError) {
+                    throw new HttpError(503, 'CARRIER_API_UNAVAILABLE',
+                        'The carrier API is currently unreachable. Try again in a moment.');
+                }
+                throw err;
             }
-            throw err;
-        }
-        if (!trackResult.found) {
-            throw new HttpError(422, 'CARRIER_NUMBER_NOT_FOUND',
-                'No carrier recognized this tracking number. Check for typos and try again.');
+            if (!trackResult.found) {
+                throw new HttpError(422, 'CARRIER_NUMBER_NOT_FOUND',
+                    'No carrier recognized this tracking number. Check for typos and try again.');
+            }
+            lastCheckedAt = new Date();
         }
 
         let pkg;
@@ -103,13 +111,15 @@ router.post('/',
                         carrier: carrierUsed,
                         nickname,
                         source: 'manual',
-                        last_checked_at: new Date(),
+                        last_checked_at: lastCheckedAt,
                     },
                 });
-                await tx.trackingEvent.createMany({
-                    data: trackResult.events.map(e => toEventRow(created.id, e)),
-                    skipDuplicates: true,
-                });
+                if (trackResult && trackResult.events && trackResult.events.length > 0) {
+                    await tx.trackingEvent.createMany({
+                        data: trackResult.events.map(e => toEventRow(created.id, e)),
+                        skipDuplicates: true,
+                    });
+                }
                 return tx.package.findUnique({
                     where: { id: created.id },
                     include: { tracking_events: { orderBy: { event_time: 'desc' } } },

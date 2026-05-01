@@ -35,6 +35,10 @@ function _resetForTests() {
     adapters.length = 0;
 }
 
+function hasAdapter(code) {
+    return adapters.some(a => a.name === code);
+}
+
 async function getTrackingInfoWithFallback(trackingNumber, assignedCarrier) {
     const all = getAll();
     const ordered = [
@@ -88,6 +92,7 @@ async function getTrackingInfoWithFallback(trackingNumber, assignedCarrier) {
 module.exports = {
     register,
     getAll,
+    hasAdapter,
     getTrackingInfoWithFallback,
     AdapterFetchError,
     _resetForTests,
