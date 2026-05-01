@@ -11,3 +11,7 @@ StatusChip component (Slice 3); no per-status CSS variables here.
  */
 
 @import 'bootstrap/scss/bootstrap';
+
+.no-caret.dropdown-toggle::after {
+  display: none;
+}
