@@ -37,11 +37,15 @@ envCheck();
 
 const app = express();
 
-app.use(cors());
+app.use(cors({ origin: process.env.FRONTEND_URL, credentials: false }));
 app.use(express.json());
 if (process.env.NODE_ENV !== 'test') {
     app.use(morgan('dev'));
 }
+
+app.get('/health', (req, res) => {
+    res.json({ status: 'ok', service: 'webapi-final-api' });
+});
 
 app.use('/auth', authRouter);
 app.use('/auth/google', googleCallbackRouter);
