@@ -81,9 +81,12 @@ describe('App slice 2 routing', () => {
     expect(screen.getByTestId('page-signin')).toBeInTheDocument();
   });
 
-  it('renders the package detail placeholder at /packages/:id when signed in', () => {
+  it('renders the package detail page at /packages/:id when signed in', async () => {
     renderApp('/packages/42', SIGNED_IN);
-    expect(screen.getByTestId('page-detail')).toBeInTheDocument();
+    // The detail page mounts the loading Spinner synchronously while the
+    // fetchPackageDetail thunk is in flight. That is enough to confirm routing
+    // landed; the full detail render is exercised by PackageDetailPage.test.js.
+    expect(screen.getByRole('status', { name: 'Loading' })).toBeInTheDocument();
   });
 
   it('renders the sync placeholder at /sync when signed in', () => {
