@@ -4,3 +4,4 @@ api/.env
 api/.env.test
 .DS_Store
 *.log
+.superpowers/

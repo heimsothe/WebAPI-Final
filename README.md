@@ -1,70 +1,136 @@
 # Personal Package Tracker
 
-CSCI 3916 Final Project. A full-stack package tracker that gathers tracking numbers from a Gmail inbox, classifies them by carrier, and aggregates each carrier's tracking API into one timeline.
+**Author:** Elijah Heimsoth
+**Class:** CSCI 3916 Web API
+**Date:** 04/30/26
 
-See `CLAUDE.md` for project context (excluded from this repo's history; lives in the docs repo at `$HOME/.webapi-final-docs.git`).
+## Description
 
-## Deployment (Render)
+Final project for CSCI 3916. A full-stack package tracker that scans a connected Gmail inbox for shipping tracking numbers, classifies them by carrier, and aggregates each carrier's tracking API into a single timeline. Users sign up, connect one or more Gmail accounts via OAuth, and the API imports detected tracking numbers from carrier-sender emails on demand. Each package's current status and event history are pulled from the carrier API (FedEx sandbox in this deployment) and surfaced through a unified REST surface.
 
-The project deploys two Render services from this repo:
+- `POST /auth/signup` and `POST /auth/signin` issue email + password JWT tokens.
+- `POST /api/gmail/connect` and `GET /auth/google/callback` complete the Google OAuth handshake. Refresh tokens are encrypted at rest with AES-256-GCM.
+- `POST /api/gmail/sync` scans every connected inbox, classifies tracking numbers by carrier with per-carrier regexes, and imports new packages while skipping any number already on the user's exclusion list.
+- `GET /api/packages` and `POST /api/packages/:id/refresh` list tracked packages and refresh a single package's events from its carrier.
+- `DELETE /api/packages/:id` atomically deletes the package and adds its tracking number to the per-user exclusion list, so a future Gmail sync cannot re-import it.
 
-| Service | Type | Root directory | Build command | Start command |
-|---------|------|----------------|---------------|---------------|
-| `<api-name>` | Web Service | `api/` | `npm install && npx prisma generate && npx prisma migrate deploy` | `node server.js` |
-| `<frontend-name>` | Static Site | `web/` | (none) | (publish directory: `.`) |
-
-Replace `<api-name>` and `<frontend-name>` with your chosen service names. The API service auto-runs `prisma migrate deploy` on every build, so pending migrations apply on push to `main`.
-
-### Environment variables (API service)
-
-Set these in Render's dashboard for the API web service. Most reuse values from your local `api/.env`:
-
-| Var | Production value |
-|-----|------------------|
-| `DATABASE_URL` | Supabase pooled URL, port 6543 |
-| `DIRECT_URL` | Supabase direct URL, port 5432 |
-| `JWT_SECRET` | same as dev `.env` |
-| `TOKEN_ENCRYPTION_KEY` | same as dev `.env` (must be exactly 32 bytes) |
-| `GOOGLE_CLIENT_ID` | same as dev `.env` |
-| `GOOGLE_CLIENT_SECRET` | same as dev `.env` |
-| `GOOGLE_REDIRECT_URI` | `https://<api-name>.onrender.com/auth/google/callback` |
-| `FRONTEND_URL` | `https://<frontend-name>.onrender.com` (also drives CORS) |
-| `FEDEX_API_BASE_URL` | `https://apis-sandbox.fedex.com` |
-| `FEDEX_CLIENT_ID` | same as dev `.env` |
-| `FEDEX_CLIENT_SECRET` | same as dev `.env` |
-| `NODE_ENV` | `production` |
-
-Do NOT set `PORT` - Render injects it automatically.
-
-### Google Cloud Console (manual one-time step)
-
-After the API service is up and `<api-name>.onrender.com` is known:
-
-1. Open Google Cloud Console > APIs & Services > Credentials > the OAuth 2.0 Client ID used for this project.
-2. Under "Authorized redirect URIs", add: `https://<api-name>.onrender.com/auth/google/callback`.
-3. Keep `http://localhost:8080/auth/google/callback` so local dev still works.
-4. Save.
-
-### Post-deploy smoke
+## Installation
 
 ```bash
-# Health check
-curl https://<api-name>.onrender.com/health
-# expect: {"status":"ok","service":"webapi-final-api"}
-
-# Auth wall
-curl https://<api-name>.onrender.com/api/gmail/status
-# expect: HTTP 401
-
-# Demo signin (if a demo user exists on Supabase)
-curl -X POST https://<api-name>.onrender.com/auth/signin \
-  -H "Content-Type: application/json" \
-  -d '{"email":"demo@demo.com","password":"Demo1234"}'
-# expect: 200 with token
+git clone https://github.com/heimsothe/WebAPI-Final.git
+cd WebAPI-Final/api
+npm install
 ```
 
-The free-tier dyno spins down after ~15 minutes of inactivity. The first request to a sleeping dyno takes 30-60 seconds; subsequent requests are normal speed.
+Create a `.env` file in `api/`:
 
-### Postman test collection
+```
+# Database (Supabase Postgres)
+DATABASE_URL=<Supabase pooled URL, port 6543>
+DIRECT_URL=<Supabase direct URL, port 5432>
 
-`api/postman/Package Tracker.postman_collection.json` exercises the chained workflow (auth, Gmail OAuth, packages, exclusions). See `api/postman/README.md` for import and run instructions.
+# Auth
+JWT_SECRET=<JWT signing secret>
+TOKEN_ENCRYPTION_KEY=<exactly 32 bytes, encrypts OAuth refresh tokens at rest>
+
+# Google OAuth (Gmail read scope)
+GOOGLE_CLIENT_ID=<from Google Cloud Console>
+GOOGLE_CLIENT_SECRET=<from Google Cloud Console>
+GOOGLE_REDIRECT_URI=http://localhost:8080/auth/google/callback
+
+# Frontend (also drives the CORS allow origin)
+FRONTEND_URL=http://localhost:3000
+
+# FedEx Track API (sandbox)
+FEDEX_API_BASE_URL=https://apis-sandbox.fedex.com
+FEDEX_CLIENT_ID=<sandbox client id>
+FEDEX_CLIENT_SECRET=<sandbox client secret>
+
+PORT=8080
+```
+
+## Usage
+
+Start the server:
+
+```bash
+npm start
+```
+
+Run the test suite (uses a separate local Postgres database, never Supabase):
+
+```bash
+npm run test:db:setup   # one-time: deploy migrations to package_tracker_test
+npm test
+```
+
+### Authentication
+
+1. `POST /auth/signup` with `{ email, password }` to create an account and receive a JWT token in the response.
+2. `POST /auth/signin` with `{ email, password }` to receive a fresh token.
+3. Include the token as `Authorization: Bearer <token>` on every `/api/...` request.
+
+## Deployed Endpoints
+
+- **API:** [https://webapi-final.onrender.com](https://webapi-final.onrender.com)
+- **React App:** [https://webapi-final-react.onrender.com](https://webapi-final-react.onrender.com) (placeholder, frontend not yet built)
+
+> **Note:** The first request after an idle period may take up to 60 seconds due to Render free-tier cold starts.
+
+## API Routes
+
+| Route | GET | POST | PATCH | DELETE |
+| ----- | --- | ---- | ----- | ------ |
+| `/health` | Liveness check | | | |
+| `/auth/signup` | | Create account, return JWT | | |
+| `/auth/signin` | | Authenticate, return JWT | | |
+| `/auth/google/callback` | OAuth redirect target (Google) | | | |
+| `/api/gmail/connect` | | Begin Google OAuth handshake | | |
+| `/api/gmail/status` | List connected Gmail accounts | | | |
+| `/api/gmail/sync` | | Scan connected inboxes, import new packages | | |
+| `/api/gmail/connection/:id` | | | | Disconnect a Gmail account |
+| `/api/packages` | List packages (`?hidden=all` includes excluded) | Create package | | |
+| `/api/packages/:id` | Package detail with events | | Update display fields | Delete and add to exclusions |
+| `/api/packages/:id/refresh` | | Re-fetch events from the carrier API | | |
+| `/api/exclusions` | List excluded tracking numbers | | | |
+| `/api/exclusions/:id` | | | | Remove from exclusion list |
+
+All `/api/...` routes require JWT authentication. Obtain a token via `POST /auth/signin`.
+
+## Postman Collection
+
+- [Collection JSON](api/postman/Package%20Tracker.postman_collection.json)
+- [Environment JSON](api/postman/Package%20Tracker%20%28Production%29.postman_environment.json)
+- [Collection Postman Link](https://go.postman.co/collection/49915090-d691edcd-2f21-4af2-838c-08591838653b)
+
+### Collection Details
+
+| #  | Request                              | Method                                | Expected Status |
+| -- | ------------------------------------ | ------------------------------------- | --------------- |
+| 1  | Health check                         | GET /health                           | 200             |
+| 2  | Auth wall (no token)                 | GET /api/packages                     | 401             |
+| 3  | Signup (random user)                 | POST /auth/signup                     | 201             |
+| 4  | Signin (get JWT token)               | POST /auth/signin                     | 200             |
+| 5  | Error: Wrong password                | POST /auth/signin                     | 401             |
+| 6  | Gmail status (not connected)         | GET /api/gmail/status                 | 200             |
+| 7  | Begin OAuth handshake                | POST /api/gmail/connect               | 200             |
+| 8  | Gmail status (after auth)            | GET /api/gmail/status                 | 200             |
+| 9  | Trigger Gmail sync                   | POST /api/gmail/sync                  | 200             |
+| 10 | List packages                        | GET /api/packages                     | 200             |
+| 11 | Add a FedEx package                  | POST /api/packages                    | 201             |
+| 12 | Add a UPS package (no adapter)       | POST /api/packages                    | 201             |
+| 13 | Get package detail                   | GET /api/packages/:id                 | 200             |
+| 14 | Update package label                 | PATCH /api/packages/:id               | 200             |
+| 15 | Refresh from carrier                 | POST /api/packages/:id/refresh        | 200             |
+| 16 | List with hidden                     | GET /api/packages?hidden=all          | 200             |
+| 17 | Delete a package                     | DELETE /api/packages/:id              | 204             |
+| 18 | List exclusions                      | GET /api/exclusions                   | 200             |
+| 19 | Re-add deleted package: 409 EXCLUDED | POST /api/packages                    | 409             |
+| 20 | Remove an exclusion                  | DELETE /api/exclusions/:id            | 204             |
+
+### How to Run
+
+1. Import the Collection JSON and Environment JSON into Postman (or use the Postman link above).
+2. Select the **Package Tracker (Production)** environment.
+3. Click "Run Collection". At step 7, copy the returned `authorization_url` into a browser, complete Google's consent flow, then continue from step 8.
+4. All 20 requests should pass (46/46 assertions).

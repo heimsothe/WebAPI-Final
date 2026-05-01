@@ -4,7 +4,7 @@ Demonstrates the chained user workflow against the deployed Package Tracker API.
 
 ## Files
 
-- `Package Tracker.postman_collection.json` - the collection (18 requests, prefixed `[Auth]` / `[Gmail]` / `[Packages]` / `[Exclusions]`).
+- `Package Tracker.postman_collection.json` - the collection (20 requests, prefixed `[Health]` / `[Auth]` / `[Gmail]` / `[Packages]` / `[Exclusions]`).
 - `Package Tracker (Production).postman_environment.json` - environment variables (host).
 
 Both files are byte-identical to what Postman exports from the cloud collection at https://go.postman.co/collection/49915090-d691edcd-2f21-4af2-838c-08591838653b . Re-exporting from Postman should produce a zero-diff against these files.
@@ -29,7 +29,7 @@ npx newman run "Package Tracker.postman_collection.json" \
     -e "Package Tracker (Production).postman_environment.json"
 ```
 
-Runs all 18 requests end-to-end against the deployed API. Expected outcome: 35/35 assertions pass.
+Runs all 20 requests end-to-end against the deployed API. Expected outcome: 46/46 assertions pass.
 
 ## Variables captured at runtime
 
