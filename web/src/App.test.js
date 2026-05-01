@@ -5,11 +5,11 @@
 - Assignment: WebAPI-FinalProject
 - Class: CSCI 3916
 
-Description: Slice 1 routing smoke, kept green during Slice 2 by
-threading the user reducer through renderWithProviders. The new
-SignInPage and (later) SignUpPage call useSelector((s) => s.user);
-without a real user slice in the store they would crash. This file
-is rewritten in full in Task 11 to add protected-route assertions.
+Description: Slice 2 routing smoke. Public routes (signin, signup) are
+reachable without a token; protected routes require a preloaded token
+to bypass RequireAuth. The 404 case is unaffected by auth wrappers.
+Replaces the Slice 1 unprotected smoke once the route tree gained
+RequireAuth + RedirectIfAuthed.
  */
 
 import { screen } from '@testing-library/react';
@@ -17,6 +17,13 @@ import App from './App';
 import userReducer from './store/userSlice';
 import { renderWithProviders } from './test-utils/renderWithProviders';
 
+const SIGNED_IN = {
+  user: { id: '1', email: 'a@b.c', display_name: 'Alex' },
+  token: 'tok',
+  status: 'idle',
+  error: null,
+  justForceLoggedOut: false,
+};
 const SIGNED_OUT = {
   user: null,
   token: null,
@@ -25,52 +32,74 @@ const SIGNED_OUT = {
   justForceLoggedOut: false,
 };
 
-function renderAt(route) {
+function renderApp(route, userState) {
   return renderWithProviders(<App />, {
     route,
     reducer: { user: userReducer },
-    preloadedState: { user: SIGNED_OUT },
+    preloadedState: { user: userState },
   });
 }
 
-describe('App slice 1 smoke', () => {
-  it('renders the dashboard placeholder at /', () => {
-    renderAt('/');
-    expect(screen.getByTestId('page-dashboard')).toBeInTheDocument();
-  });
+describe('App slice 2 routing', () => {
+  beforeEach(() => localStorage.clear());
 
-  it('renders the signin page at /signin', () => {
-    renderAt('/signin');
+  it('renders the signin page when signed out', () => {
+    renderApp('/signin', SIGNED_OUT);
     expect(screen.getByTestId('page-signin')).toBeInTheDocument();
   });
 
-  it('renders the signup placeholder at /signup', () => {
-    renderAt('/signup');
+  it('renders the signup page when signed out', () => {
+    renderApp('/signup', SIGNED_OUT);
     expect(screen.getByTestId('page-signup')).toBeInTheDocument();
   });
 
-  it('renders the package detail placeholder at /packages/:id', () => {
-    renderAt('/packages/42');
+  it('redirects /signin to / when already signed in', () => {
+    renderApp('/signin', SIGNED_IN);
+    expect(screen.getByTestId('page-dashboard')).toBeInTheDocument();
+  });
+
+  it('redirects /signup to / when already signed in', () => {
+    renderApp('/signup', SIGNED_IN);
+    expect(screen.getByTestId('page-dashboard')).toBeInTheDocument();
+  });
+
+  it('renders the dashboard placeholder at / when signed in', () => {
+    renderApp('/', SIGNED_IN);
+    expect(screen.getByTestId('page-dashboard')).toBeInTheDocument();
+  });
+
+  it('redirects / to /signin when signed out', () => {
+    renderApp('/', SIGNED_OUT);
+    expect(screen.getByTestId('page-signin')).toBeInTheDocument();
+  });
+
+  it('renders the package detail placeholder at /packages/:id when signed in', () => {
+    renderApp('/packages/42', SIGNED_IN);
     expect(screen.getByTestId('page-detail')).toBeInTheDocument();
   });
 
-  it('renders the sync placeholder at /sync', () => {
-    renderAt('/sync');
+  it('renders the sync placeholder at /sync when signed in', () => {
+    renderApp('/sync', SIGNED_IN);
     expect(screen.getByTestId('page-sync')).toBeInTheDocument();
   });
 
-  it('renders the settings placeholder at /settings', () => {
-    renderAt('/settings');
+  it('renders the settings placeholder at /settings when signed in', () => {
+    renderApp('/settings', SIGNED_IN);
     expect(screen.getByTestId('page-settings')).toBeInTheDocument();
   });
 
   it('renders the settings placeholder for nested settings paths', () => {
-    renderAt('/settings/connections');
+    renderApp('/settings/connections', SIGNED_IN);
     expect(screen.getByTestId('page-settings')).toBeInTheDocument();
   });
 
-  it('renders the 404 page for unknown routes', () => {
-    renderAt('/nonexistent-route');
+  it('renders the 404 page for unknown routes when signed in', () => {
+    renderApp('/nonexistent-route', SIGNED_IN);
+    expect(screen.getByTestId('page-not-found')).toBeInTheDocument();
+  });
+
+  it('renders the 404 page for unknown routes when signed out', () => {
+    renderApp('/nonexistent-route', SIGNED_OUT);
     expect(screen.getByTestId('page-not-found')).toBeInTheDocument();
   });
 });
