@@ -5,10 +5,10 @@
 - Assignment: WebAPI-FinalProject
 - Class: CSCI 3916
 
-Description: SPA entry point. Wraps App in Redux Provider and BrowserRouter.
-The setApiHandlers wiring for the 401 interceptor (per spec Section 10.1
-architectural decision A) is added in Slice 2 once api/client.js exports
-setApiHandlers and userSlice exports forceLogout.
+Description: SPA entry point. Wires Provider, BrowserRouter, and the
+api/client onUnauthorized hook so a 401 from any authenticated request
+clears the user slice in one place. The setApiHandlers indirection
+avoids the circular import between client.js and the store.
  */
 
 import React from 'react';
@@ -16,8 +16,12 @@ import ReactDOM from 'react-dom/client';
 import { Provider } from 'react-redux';
 import { BrowserRouter } from 'react-router-dom';
 import App from './App';
+import { setApiHandlers } from './api/client';
 import { store } from './store';
+import { forceLogout } from './store/userSlice';
 import './styles/custom.scss';
+
+setApiHandlers({ onUnauthorized: () => store.dispatch(forceLogout()) });
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(

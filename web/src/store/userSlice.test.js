@@ -160,3 +160,53 @@ describe('userSlice logout actions', () => {
     expect(localStorage.getItem('pkg_tracker_token')).toBeNull();
   });
 });
+
+describe('userSlice forceLogout flag', () => {
+  beforeEach(() => localStorage.clear());
+
+  it('forceLogout sets justForceLoggedOut to true', () => {
+    const store = freshStore();
+    store.dispatch(forceLogout());
+    expect(store.getState().user.justForceLoggedOut).toBe(true);
+  });
+
+  it('logout sets justForceLoggedOut to false', () => {
+    const store = freshStore();
+    store.dispatch(forceLogout());
+    store.dispatch(logout());
+    expect(store.getState().user.justForceLoggedOut).toBe(false);
+  });
+
+  it('clearForceLogoutFlag turns the flag off without touching token or user', () => {
+    // Set up the rare-but-valid state directly: flag=true AND user/token
+    // populated. In practice signin.pending would clear the flag before any
+    // fulfilled lands, so we can't walk to this state through real action
+    // sequences. preloadedState skips the impossible setup dance.
+    const store = configureStore({
+      reducer: { user: userReducer },
+      preloadedState: {
+        user: {
+          user: { id: '1', email: 'a@b.c' },
+          token: 'tok',
+          status: 'idle',
+          error: null,
+          justForceLoggedOut: true,
+        },
+      },
+    });
+
+    store.dispatch(clearForceLogoutFlag());
+
+    const state = store.getState().user;
+    expect(state.justForceLoggedOut).toBe(false);
+    expect(state.token).toBe('tok');
+    expect(state.user).toEqual({ id: '1', email: 'a@b.c' });
+  });
+
+  it('signin.pending clears justForceLoggedOut', () => {
+    const store = freshStore();
+    store.dispatch(forceLogout());
+    store.dispatch({ type: signin.pending.type });
+    expect(store.getState().user.justForceLoggedOut).toBe(false);
+  });
+});

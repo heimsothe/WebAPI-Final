@@ -18,7 +18,11 @@ import RequireAuth from '../../components/auth/RequireAuth';
 
 function SigninStub() {
   const loc = useLocation();
-  return <div data-testid="signin-stub">from: {loc.state?.from?.pathname || 'none'}</div>;
+  return (
+    <div data-testid="signin-stub">
+      from: {loc.state?.from?.pathname || 'none'} | search: {loc.search || 'none'}
+    </div>
+  );
 }
 
 function tree(initialUserState) {
@@ -58,5 +62,34 @@ describe('<RequireAuth>', () => {
       justForceLoggedOut: false,
     });
     expect(screen.getByTestId('protected-content')).toBeInTheDocument();
+  });
+});
+
+describe('<RequireAuth> with forced logout', () => {
+  it('redirects to /signin?expired=1 when justForceLoggedOut is true', () => {
+    renderWithProviders(
+      <Routes>
+        <Route path="/signin" element={<SigninStub />} />
+        <Route element={<RequireAuth />}>
+          <Route path="/protected" element={<div data-testid="protected-content">secret</div>} />
+        </Route>
+      </Routes>,
+      {
+        route: '/protected',
+        reducer: { user: userReducer },
+        preloadedState: {
+          user: {
+            user: null,
+            token: null,
+            status: 'idle',
+            error: null,
+            justForceLoggedOut: true,
+          },
+        },
+      }
+    );
+    const stub = screen.getByTestId('signin-stub');
+    expect(stub).toHaveTextContent('from: /protected');
+    expect(stub).toHaveTextContent('search: ?expired=1');
   });
 });
