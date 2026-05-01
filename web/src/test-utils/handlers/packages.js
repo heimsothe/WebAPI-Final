@@ -6,10 +6,11 @@
 - Class: CSCI 3916
 
 Description: MSW handlers for /api/packages*. Default handlers return
-empty list / made-up detail / generic success so component tests are not
-forced to override every endpoint. Tests opt into specific shapes via
-server.use(rest.<method>(url, handler)). errorVariants covers the four
-rejection paths the integration tests need.
+empty list / made-up detail / fresh package on POST / generic success
+so component tests are not forced to override every endpoint. Tests opt
+into specific shapes via server.use(rest.<method>(url, handler)).
+errorVariants covers nine rejection paths the integration tests need
+across list, detail, refresh, and create.
  */
 
 import { rest } from 'msw';
@@ -58,6 +59,21 @@ export const handlers = [
       })
     )
   ),
+  rest.post(`${BASE}/api/packages`, async (req, res, ctx) => {
+    const body = await req.json();
+    return res(
+      ctx.status(201),
+      ctx.json({
+        success: true,
+        data: makePackageDetail({
+          tracking_number: body.tracking_number,
+          carrier: body.carrier,
+          nickname: body.nickname ?? null,
+          events: [],
+        }),
+      })
+    );
+  }),
 ];
 
 export const errorVariants = {
@@ -109,6 +125,67 @@ export const errorVariants = {
             cooldown_remaining_seconds: 240,
             fetched_at: null,
           },
+        },
+      })
+    )
+  ),
+  createExcluded: rest.post(`${BASE}/api/packages`, (req, res, ctx) =>
+    res(
+      ctx.status(409),
+      ctx.json({
+        success: false,
+        error: {
+          code: 'EXCLUDED',
+          message:
+            'This tracking number is on your exclusion list. Remove it from exclusions before re-adding.',
+        },
+      })
+    )
+  ),
+  createConflict: rest.post(`${BASE}/api/packages`, (req, res, ctx) =>
+    res(
+      ctx.status(409),
+      ctx.json({
+        success: false,
+        error: { code: 'CONFLICT', message: 'You are already tracking this package.' },
+      })
+    )
+  ),
+  createValidationFailed: rest.post(`${BASE}/api/packages`, (req, res, ctx) =>
+    res(
+      ctx.status(422),
+      ctx.json({
+        success: false,
+        error: {
+          code: 'VALIDATION_FAILED',
+          message: 'Validation failed.',
+          details: [
+            { field: 'tracking_number', message: 'tracking_number must be 1 to 64 chars.' },
+          ],
+        },
+      })
+    )
+  ),
+  createCarrierUnavailable: rest.post(`${BASE}/api/packages`, (req, res, ctx) =>
+    res(
+      ctx.status(503),
+      ctx.json({
+        success: false,
+        error: {
+          code: 'CARRIER_API_UNAVAILABLE',
+          message: 'The carrier API is currently unreachable. Try again in a moment.',
+        },
+      })
+    )
+  ),
+  createCarrierNumberNotFound: rest.post(`${BASE}/api/packages`, (req, res, ctx) =>
+    res(
+      ctx.status(422),
+      ctx.json({
+        success: false,
+        error: {
+          code: 'CARRIER_NUMBER_NOT_FOUND',
+          message: 'No carrier recognized this tracking number. Check for typos and try again.',
         },
       })
     )
