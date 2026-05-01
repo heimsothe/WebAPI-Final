@@ -28,7 +28,7 @@ export function makePackage(overrides = {}) {
     id: generateId(),
     carrier: 'FEDEX',
     tracking_number: '774988123312',
-    tracking_url: null,
+    tracking_url: 'https://www.fedex.com/fedextrack/?trknbr=774988123312',
     nickname: null,
     hidden: false,
     source: 'manual',
@@ -36,6 +36,15 @@ export function makePackage(overrides = {}) {
     created_at: new Date().toISOString(),
     latest_event: null,
     ...overrides,
+  };
+}
+
+export function makePackageDetail(overrides = {}) {
+  const { events, ...rest } = overrides;
+  const base = makePackage(rest);
+  return {
+    ...base,
+    events: events ?? [],
   };
 }
 
