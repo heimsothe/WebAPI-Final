@@ -1,0 +1,13 @@
+/*
+- File: custom.scss
+- Author: Elijah Heimsoth
+- Date: 05/01/2026
+- Assignment: WebAPI-FinalProject
+- Class: CSCI 3916
+
+Description: App-wide styles. Imports Bootstrap with no overrides in V1.
+Status chip colors come from Bootstrap variants directly via the
+StatusChip component (Slice 3); no per-status CSS variables here.
+ */
+
+@import "bootstrap/scss/bootstrap";
