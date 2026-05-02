@@ -11,14 +11,15 @@ content on the right. Mounts ConnectionsTab on /settings (and on
 to their respective Slice 6 components. The OAuth callback bounce-back is
 handled in a useEffect that reads useSearchParams: each recognized
 gmail or gmail_error / warning value fires the matching toast or
-alert and scrubs the URL via setSearchParams({}). React 18 StrictMode
-runs effects twice in dev; a useRef-keyed guard short-circuits the
-second pass so dispatch is naturally idempotent.
+alert and then navigates to /settings/connections to land the user
+on the active tab and clear the OAuth params in one atomic step.
+React 18 StrictMode runs effects twice in dev; a useRef-keyed guard
+short-circuits the second pass so dispatch is naturally idempotent.
  */
 
 import { useEffect, useRef, useState } from 'react';
 import { Container, Row, Col, Nav, Alert } from 'react-bootstrap';
-import { Routes, Route, Navigate, useSearchParams, NavLink } from 'react-router-dom';
+import { Routes, Route, Navigate, useSearchParams, useNavigate, NavLink } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
 import { fetchConnectionStatus, runSync } from '../store/gmailSlice';
 import { fetchPackages } from '../store/packagesSlice';
@@ -53,7 +54,8 @@ const ERROR_ALERTS = {
 
 export default function SettingsPage() {
   const dispatch = useDispatch();
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const [errorAlert, setErrorAlert] = useState(null);
   // Guards against React 18 StrictMode's double-invocation of effects.
   // Without this, the second pass sees the same params (the first pass's
@@ -104,16 +106,21 @@ export default function SettingsPage() {
           });
       }
 
-      setSearchParams({});
+      // Navigate (don't setSearchParams({})) to avoid a race with the index
+      // Route's <Navigate to="connections">: setSearchParams resolves
+      // navigate("?") against the closure-captured pathname /settings,
+      // which would override the index Route's just-pushed /settings/connections
+      // and orphan the URL at /settings (no Route match, blank pane).
+      navigate('/settings/connections', { replace: true });
       return;
     }
 
     if (gmailError && ERROR_ALERTS[gmailError]) {
       setErrorAlert(ERROR_ALERTS[gmailError]);
-      setSearchParams({});
+      navigate('/settings/connections', { replace: true });
       return;
     }
-  }, [searchParams, setSearchParams, dispatch]);
+  }, [searchParams, navigate, dispatch]);
 
   const navLinkClass = ({ isActive }) => (isActive ? 'nav-link active' : 'nav-link');
 

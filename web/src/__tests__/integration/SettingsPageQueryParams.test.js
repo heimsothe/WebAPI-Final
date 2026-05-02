@@ -82,6 +82,25 @@ function renderAtSearch(search) {
   );
 }
 
+// The API's OAuth callback redirects to `/settings?...` (not /settings/connections?...).
+// Use this helper to render at the actual production URL shape so the index Route's
+// <Navigate to="connections"> fires alongside the bounce-back useEffect.
+function renderAtRoot(search) {
+  return renderWithProviders(
+    <>
+      <Routes>
+        <Route path="/settings/*" element={<SettingsPage />} />
+      </Routes>
+      <LocationCapture />
+    </>,
+    {
+      reducer,
+      preloadedState: signedInState(),
+      route: `/settings${search}`,
+    }
+  );
+}
+
 beforeEach(() => {
   localStorage.setItem('pkg_tracker_token', 'tok');
 });
@@ -212,6 +231,30 @@ describe('SettingsPage auto-sync after connect', () => {
       expect(toasts).toHaveLength(2);
       expect(toasts[1].variant).toBe('danger');
       expect(toasts[1].message).toMatch(/auto-sync after connecting failed/i);
+    });
+  });
+});
+
+describe('SettingsPage bounce-back from /settings root (matches API redirect URL)', () => {
+  // Regression: the API redirects to /settings?gmail=... after OAuth. Bottom-up
+  // effect ordering means the index Route's <Navigate to="connections"> fires
+  // before SettingsPage's bounce-back useEffect. setSearchParams({}) resolves
+  // navigate("?") against the closure-captured pathname /settings, overriding
+  // the just-pushed /settings/connections. Without the fix, the URL settles at
+  // /settings (no Route match, blank pane).
+  it('?gmail=connected at /settings root settles URL at /settings/connections', async () => {
+    renderAtRoot('?gmail=connected');
+    await waitFor(() => {
+      expect(currentLocation.pathname).toBe('/settings/connections');
+      expect(currentLocation.search).toBe('');
+    });
+  });
+
+  it('?gmail_error=consent_denied at /settings root settles URL at /settings/connections', async () => {
+    renderAtRoot('?gmail_error=consent_denied');
+    await waitFor(() => {
+      expect(currentLocation.pathname).toBe('/settings/connections');
+      expect(currentLocation.search).toBe('');
     });
   });
 });
