@@ -114,14 +114,16 @@ describe('App slice 2 routing', () => {
     ).toBeInTheDocument();
   });
 
-  it('renders the settings placeholder at /settings when signed in', () => {
+  it('renders the settings page at /settings when signed in', async () => {
     renderApp('/settings', SIGNED_IN);
-    expect(screen.getByTestId('page-settings')).toBeInTheDocument();
+    // The shell heading renders synchronously; ConnectionsTab mounts via the
+    // index Navigate to /settings/connections and then dispatches its fetch.
+    expect(await screen.findByRole('heading', { name: /^settings$/i })).toBeInTheDocument();
   });
 
-  it('renders the settings placeholder for nested settings paths', () => {
+  it('renders the settings page for nested settings paths', async () => {
     renderApp('/settings/connections', SIGNED_IN);
-    expect(screen.getByTestId('page-settings')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: /^settings$/i })).toBeInTheDocument();
   });
 
   it('renders the 404 page for unknown routes when signed in', () => {
