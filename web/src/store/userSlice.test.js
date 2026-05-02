@@ -210,3 +210,46 @@ describe('userSlice forceLogout flag', () => {
     expect(store.getState().user.justForceLoggedOut).toBe(false);
   });
 });
+
+describe('user persistence to localStorage (pkg_tracker_user)', () => {
+  beforeEach(() => localStorage.clear());
+
+  it('hydrateInitialState restores the user object when pkg_tracker_user is set', () => {
+    const persisted = {
+      id: '7',
+      email: 'me@example.com',
+      display_name: 'Me',
+      created_at: '2026-01-01T00:00:00Z',
+    };
+    localStorage.setItem('pkg_tracker_token', 'tok');
+    localStorage.setItem('pkg_tracker_user', JSON.stringify(persisted));
+    const { hydrateInitialState } = require('./userSlice');
+    const state = hydrateInitialState();
+    expect(state.user).toEqual(persisted);
+    expect(state.token).toBe('tok');
+  });
+
+  it('hydrateInitialState falls through to user=null when pkg_tracker_user is malformed JSON', () => {
+    localStorage.setItem('pkg_tracker_user', '{not valid json');
+    const { hydrateInitialState } = require('./userSlice');
+    const state = hydrateInitialState();
+    expect(state.user).toBeNull();
+  });
+
+  it('logout removes pkg_tracker_user from localStorage in addition to the token', () => {
+    localStorage.setItem('pkg_tracker_token', 'tok');
+    localStorage.setItem('pkg_tracker_user', JSON.stringify({ id: '7', email: 'a@b.c' }));
+    const reducer = require('./userSlice').default;
+    const { logout } = require('./userSlice');
+    const seeded = {
+      user: { id: '7', email: 'a@b.c', display_name: null, created_at: '' },
+      token: 'tok',
+      status: 'idle',
+      error: null,
+      justForceLoggedOut: false,
+    };
+    reducer(seeded, logout());
+    expect(localStorage.getItem('pkg_tracker_token')).toBeNull();
+    expect(localStorage.getItem('pkg_tracker_user')).toBeNull();
+  });
+});

@@ -15,16 +15,31 @@ The justForceLoggedOut flag bridges the api/client.js 401 hook to
 RequireAuth's redirect to /signin?expired=1: forceLogout sets it,
 RequireAuth reads it and dispatches clearForceLogoutFlag, the next
 signin.pending also clears it for safety.
+
+Slice 6 added user-object persistence to localStorage as pkg_tracker_user
+so AccountTab and NavBar render with real values across a hard refresh.
+JSON.parse failures fall through to user=null. The Slice 5 Playwright
+fixture already wrote this key; the slice now reads it on boot.
  */
 
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import * as authApi from '../api/auth';
 
 const TOKEN_KEY = 'pkg_tracker_token';
+const USER_KEY = 'pkg_tracker_user';
+
+function loadPersistedUser() {
+  try {
+    const raw = localStorage.getItem(USER_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
 
 export function hydrateInitialState() {
   return {
-    user: null,
+    user: loadPersistedUser(),
     token: localStorage.getItem(TOKEN_KEY) || null,
     status: 'idle',
     error: null,
@@ -59,6 +74,7 @@ const userSlice = createSlice({
       state.error = null;
       state.justForceLoggedOut = false;
       localStorage.removeItem(TOKEN_KEY);
+      localStorage.removeItem(USER_KEY);
     },
     forceLogout(state) {
       state.user = null;
@@ -67,6 +83,7 @@ const userSlice = createSlice({
       state.error = null;
       state.justForceLoggedOut = true;
       localStorage.removeItem(TOKEN_KEY);
+      localStorage.removeItem(USER_KEY);
     },
     clearForceLogoutFlag(state) {
       state.justForceLoggedOut = false;
@@ -84,6 +101,7 @@ const userSlice = createSlice({
       state.token = action.payload.token;
       state.error = null;
       localStorage.setItem(TOKEN_KEY, action.payload.token);
+      localStorage.setItem(USER_KEY, JSON.stringify(action.payload.user));
     };
     const onRejected = (state, action) => {
       state.status = 'failed';
