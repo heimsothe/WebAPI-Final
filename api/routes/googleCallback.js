@@ -66,8 +66,9 @@ router.get('/callback', asyncHandler(async (req, res) => {
 
     const accountMismatch = expectedEmail && expectedEmail !== connectedEmail;
 
+    let credential;
     try {
-        await prisma.oauthCredential.upsert({
+        credential = await prisma.oauthCredential.upsert({
             where: {
                 user_id_provider_connected_email: {
                     user_id: userId,
@@ -101,12 +102,17 @@ router.get('/callback', asyncHandler(async (req, res) => {
         return redirectWithError(res, 'internal');
     }
 
-    const successQuery = accountMismatch
-        ? `?gmail=connected&warning=different_account` +
-          `&expected=${encodeURIComponent(expectedEmail)}` +
-          `&got=${encodeURIComponent(connectedEmail)}`
-        : `?gmail=connected`;
-    return res.redirect(`${process.env.FRONTEND_URL}/settings${successQuery}`);
+    const params = new URLSearchParams({
+        gmail: 'connected',
+        connection_id: credential.id.toString(),
+        email: connectedEmail,
+    });
+    if (accountMismatch) {
+        params.set('warning', 'different_account');
+        params.set('expected', expectedEmail);
+        params.set('got', connectedEmail);
+    }
+    return res.redirect(`${process.env.FRONTEND_URL}/settings?${params.toString()}`);
 }));
 
 module.exports = router;

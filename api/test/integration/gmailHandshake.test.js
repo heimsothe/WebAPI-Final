@@ -179,6 +179,8 @@ describe('GET /auth/google/callback', () => {
 
         const res = await chai.request(app).get(`/auth/google/callback?code=abc&state=${state}`).redirects(0);
         expect(res).to.redirectTo(/gmail=connected/);
+        expect(res).to.redirectTo(/connection_id=\d+/);
+        expect(res).to.redirectTo(/email=new%40gmail\.com/);
 
         const row = await prisma.oauthCredential.findFirst({
             where: { user_id: user.id, connected_email: 'new@gmail.com' },
@@ -213,6 +215,9 @@ describe('GET /auth/google/callback', () => {
         sinon.stub(google.auth.OAuth2.prototype, 'getToken').callsFake(stubTokenExchange('actual@gmail.com'));
 
         const res = await chai.request(app).get(`/auth/google/callback?code=abc&state=${state}`).redirects(0);
+        expect(res).to.redirectTo(/gmail=connected/);
+        expect(res).to.redirectTo(/connection_id=\d+/);
+        expect(res).to.redirectTo(/email=actual%40gmail\.com/);
         expect(res).to.redirectTo(/warning=different_account/);
         expect(res).to.redirectTo(/expected=expected%40gmail\.com/);
         expect(res).to.redirectTo(/got=actual%40gmail\.com/);
