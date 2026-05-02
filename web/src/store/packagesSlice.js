@@ -37,6 +37,7 @@ const initialState = {
   createStatus: 'idle',
   createError: null,
   refreshingId: null,
+  refreshingAllStatus: 'idle',
 };
 
 const apiErrorPayload = (e) => ({ code: e.code, message: e.message, details: e.details });
@@ -103,6 +104,17 @@ export const createPackage = createAsyncThunk(
   async (input, { rejectWithValue }) => {
     try {
       return await packagesApi.createPackage(input);
+    } catch (e) {
+      return rejectWithValue(apiErrorPayload(e));
+    }
+  }
+);
+
+export const refreshAllPackages = createAsyncThunk(
+  'packages/refreshAll',
+  async (_, { rejectWithValue }) => {
+    try {
+      return await packagesApi.refreshAllPackages();
     } catch (e) {
       return rejectWithValue(apiErrorPayload(e));
     }
@@ -214,6 +226,15 @@ const packagesSlice = createSlice({
           code: 'INTERNAL',
           message: action.error?.message,
         };
+      })
+      .addCase(refreshAllPackages.pending, (state) => {
+        state.refreshingAllStatus = 'loading';
+      })
+      .addCase(refreshAllPackages.fulfilled, (state) => {
+        state.refreshingAllStatus = 'succeeded';
+      })
+      .addCase(refreshAllPackages.rejected, (state) => {
+        state.refreshingAllStatus = 'failed';
       });
   },
 });

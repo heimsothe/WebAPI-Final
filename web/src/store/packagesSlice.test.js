@@ -22,6 +22,7 @@ import packagesReducer, {
   deletePackage,
   refreshPackage,
   createPackage,
+  refreshAllPackages,
   resetCreate,
 } from './packagesSlice';
 
@@ -55,6 +56,7 @@ describe('initial state', () => {
       createStatus: 'idle',
       createError: null,
       refreshingId: null,
+      refreshingAllStatus: 'idle',
     });
   });
 });
@@ -489,5 +491,26 @@ describe('createPackage thunk and resetCreate reducer', () => {
     expect(action.payload.details).toEqual([
       { field: 'tracking_number', message: 'tracking_number must be 1 to 64 chars.' },
     ]);
+  });
+});
+
+describe('refreshAllPackages thunk lifecycle', () => {
+  it('sets refreshingAllStatus to "loading" on pending', () => {
+    const state = packagesReducer(undefined, refreshAllPackages.pending('rid', undefined));
+    expect(state.refreshingAllStatus).toBe('loading');
+  });
+  it('sets refreshingAllStatus to "succeeded" on fulfilled', () => {
+    const state = packagesReducer(
+      undefined,
+      refreshAllPackages.fulfilled({ total: 0, refreshed: [], skipped: [] }, 'rid', undefined)
+    );
+    expect(state.refreshingAllStatus).toBe('succeeded');
+  });
+  it('sets refreshingAllStatus to "failed" on rejected', () => {
+    const state = packagesReducer(
+      undefined,
+      refreshAllPackages.rejected(new Error('x'), 'rid', undefined, { code: 'INTERNAL', message: 'x' })
+    );
+    expect(state.refreshingAllStatus).toBe('failed');
   });
 });

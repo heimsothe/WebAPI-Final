@@ -175,4 +175,22 @@ describe('packages API module', () => {
       expect(result.refresh).toMatchObject({ skipped: true, skip_reason: 'rate_limited' });
     });
   });
+
+  describe('refreshAllPackages', () => {
+    it('POSTs to /api/packages/refresh-all and returns the data envelope', async () => {
+      server.use(
+        rest.post(`${BASE}/api/packages/refresh-all`, (req, res, ctx) =>
+          res(
+            ctx.status(200),
+            ctx.json({
+              success: true,
+              data: { total: 0, refreshed: [], skipped: [] },
+            })
+          )
+        )
+      );
+      const result = await packagesApi.refreshAllPackages();
+      expect(result).toEqual({ total: 0, refreshed: [], skipped: [] });
+    });
+  });
 });

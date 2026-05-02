@@ -74,6 +74,15 @@ export const handlers = [
       })
     );
   }),
+  rest.post(`${BASE}/api/packages/refresh-all`, (req, res, ctx) =>
+    res(
+      ctx.status(200),
+      ctx.json({
+        success: true,
+        data: { total: 0, refreshed: [], skipped: [] },
+      })
+    )
+  ),
 ];
 
 export const errorVariants = {
@@ -187,6 +196,47 @@ export const errorVariants = {
           code: 'CARRIER_NUMBER_NOT_FOUND',
           message: 'No carrier recognized this tracking number. Check for typos and try again.',
         },
+      })
+    )
+  ),
+  refreshAllAllSucceeded: rest.post(`${BASE}/api/packages/refresh-all`, (req, res, ctx) =>
+    res(
+      ctx.status(200),
+      ctx.json({
+        success: true,
+        data: {
+          total: 2,
+          refreshed: [
+            { id: '1', inserted_event_count: 2, carrier_changed_from: null },
+            { id: '2', inserted_event_count: 1, carrier_changed_from: null },
+          ],
+          skipped: [],
+        },
+      })
+    )
+  ),
+  refreshAllMixed: rest.post(`${BASE}/api/packages/refresh-all`, (req, res, ctx) =>
+    res(
+      ctx.status(200),
+      ctx.json({
+        success: true,
+        data: {
+          total: 3,
+          refreshed: [{ id: '1', inserted_event_count: 1, carrier_changed_from: null }],
+          skipped: [
+            { id: '2', skip_reason: 'rate_limited', cooldown_remaining_seconds: 142 },
+            { id: '3', skip_reason: 'no_adapter' },
+          ],
+        },
+      })
+    )
+  ),
+  refreshAllFailed: rest.post(`${BASE}/api/packages/refresh-all`, (req, res, ctx) =>
+    res(
+      ctx.status(500),
+      ctx.json({
+        success: false,
+        error: { code: 'INTERNAL', message: 'Something went wrong on our end.' },
       })
     )
   ),

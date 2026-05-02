@@ -47,3 +47,7 @@ export function createPackage(input) {
     body: input,
   });
 }
+
+export function refreshAllPackages() {
+  return apiFetch('/api/packages/refresh-all', { method: 'POST' });
+}
