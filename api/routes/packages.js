@@ -199,6 +199,62 @@ router.delete('/:id', asyncHandler(async (req, res) => {
 const REFRESH_COOLDOWN_MS = 5 * 60 * 1000;
 const REFRESH_COOLDOWN_SECONDS = REFRESH_COOLDOWN_MS / 1000;
 
+router.post('/refresh-all', asyncHandler(async (req, res) => {
+    const packages = await prisma.package.findMany({
+        where: { user_id: req.user.id, hidden: false },
+        select: {
+            id: true,
+            tracking_number: true,
+            carrier: true,
+            last_checked_at: true,
+        },
+    });
+
+    const refreshed = [];
+    const skipped = [];
+    const now = Date.now();
+
+    for (const pkg of packages) {
+        const lastChecked = pkg.last_checked_at ? pkg.last_checked_at.getTime() : 0;
+        const cooldownRemainingMs = (lastChecked + REFRESH_COOLDOWN_MS) - now;
+        if (cooldownRemainingMs > 0) {
+            skipped.push({
+                id: pkg.id.toString(),
+                skip_reason: 'rate_limited',
+                cooldown_remaining_seconds: Math.ceil(cooldownRemainingMs / 1000),
+            });
+            continue;
+        }
+        if (!carrierRegistry.hasAdapter(pkg.carrier)) {
+            skipped.push({ id: pkg.id.toString(), skip_reason: 'no_adapter' });
+            continue;
+        }
+        try {
+            const { result, carrierUsed, carrierChanged } =
+                await carrierRegistry.getTrackingInfoWithFallback(pkg.tracking_number, pkg.carrier);
+            if (!result.found) {
+                await touchLastChecked(pkg.id);
+                skipped.push({ id: pkg.id.toString(), skip_reason: 'not_found' });
+                continue;
+            }
+            const insertResult = await persistRefresh(pkg, result, carrierChanged ? carrierUsed : null);
+            refreshed.push({
+                id: pkg.id.toString(),
+                inserted_event_count: insertResult.insertedCount,
+                carrier_changed_from: carrierChanged ? pkg.carrier : null,
+            });
+        } catch (err) {
+            if (!(err instanceof carrierRegistry.AdapterFetchError)) throw err;
+            skipped.push({ id: pkg.id.toString(), skip_reason: err.reason });
+        }
+    }
+
+    res.status(200).json({
+        success: true,
+        data: { total: packages.length, refreshed, skipped },
+    });
+}));
+
 router.post('/:id/refresh', asyncHandler(async (req, res) => {
     const id = parseId(req.params.id);
     const pkg = await prisma.package.findFirst({
