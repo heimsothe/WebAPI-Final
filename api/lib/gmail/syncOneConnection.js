@@ -24,6 +24,8 @@ const { buildQuery } = require('./buildQuery');
 const { extractBodyText } = require('./extractBodyText');
 const { getAccessTokenForConnection } = require('./refreshIfNeeded');
 const { findAllTrackingNumbers } = require('../trackingNumberPatterns');
+const carrierRegistry = require('../carriers/registry');
+const { toEventRow } = require('../carriers/persistEvents');
 
 const MIN_SYNC_INTERVAL_MS = (parseInt(process.env.MIN_SYNC_INTERVAL_MIN, 10) || 5) * 60 * 1000;
 const FIRST_SYNC_WINDOW_DAYS = parseInt(process.env.GMAIL_FIRST_SYNC_WINDOW_DAYS, 10) || 90;
@@ -152,6 +154,40 @@ async function syncOneConnection(connection) {
                 skipDuplicates: true,
             });
             result.imported = inserted.count;
+
+            if (inserted.count > 0) {
+                const newRows = await prisma.package.findMany({
+                    where: {
+                        user_id: connection.user_id,
+                        tracking_number: { in: toInsert.map(p => p.tracking_number) },
+                        last_checked_at: null,
+                    },
+                    select: { id: true, tracking_number: true, carrier: true },
+                });
+                for (const pkg of newRows) {
+                    if (!carrierRegistry.hasAdapter(pkg.carrier)) continue;
+                    try {
+                        const { result: trackResult, carrierUsed } =
+                            await carrierRegistry.getTrackingInfoWithFallback(pkg.tracking_number, pkg.carrier);
+                        if (trackResult.found) {
+                            await prisma.trackingEvent.createMany({
+                                data: trackResult.events.map(e => toEventRow(pkg.id, e)),
+                                skipDuplicates: true,
+                            });
+                        }
+                        await prisma.package.update({
+                            where: { id: pkg.id },
+                            data: {
+                                last_checked_at: new Date(),
+                                carrier: carrierUsed || pkg.carrier,
+                            },
+                        });
+                    } catch (err) {
+                        if (!(err instanceof carrierRegistry.AdapterFetchError)) throw err;
+                        console.warn(`Hydration failed for ${pkg.tracking_number}: ${err.reason}`);
+                    }
+                }
+            }
         }
     }
 

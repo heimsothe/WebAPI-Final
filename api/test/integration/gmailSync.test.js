@@ -21,6 +21,10 @@ const { expect } = chai;
 const { seedUser, seedConnection, seedExclusion, prisma } = require('../helpers/db');
 const { syncOneConnection } = require('../../lib/gmail/syncOneConnection');
 const { syncUserConnections } = require('../../lib/gmail/syncUserConnections');
+const carrierRegistry = require('../../lib/carriers/registry');
+const fedexAdapter = require('../../lib/carriers/fedex/adapter');
+const fixtures = require('../helpers/fixtures');
+const { stubCarrierFetch, stubCarrierFetchError } = require('../helpers/stubs');
 
 afterEach(() => sinon.restore());
 
@@ -160,6 +164,88 @@ describe('syncOneConnection (integration)', () => {
 
         const after = await prisma.oauthCredential.findUnique({ where: { id: conn.id } });
         expect(after.last_sync_at.toISOString()).to.equal(original.toISOString());
+    });
+
+    describe('FedEx hydration on import', () => {
+        // The FedEx adapter is registered by server.js at module load. This file
+        // does not require ../../server, so when this file is run in isolation
+        // the registry is empty and hasAdapter('FEDEX') returns false. Register
+        // idempotently here so the hydration loop has a FedEx adapter to call.
+        before(() => {
+            if (!carrierRegistry.hasAdapter('FEDEX')) {
+                carrierRegistry.register(fedexAdapter);
+            }
+        });
+
+        it('hydrates events for newly imported FedEx packages', async () => {
+            const user = await seedUser();
+            const conn = await seedConnection(user.id);
+            stubGmail({
+                messages: ['m1'],
+                getByIds: {
+                    m1: plainTextMessage('Your FedEx tracking number is 122816215025810'),
+                },
+            });
+            stubCarrierFetch(fedexAdapter, fixtures.FEDEX_DELIVERED);
+
+            const result = await syncOneConnection(conn);
+
+            expect(result.imported).to.equal(1);
+            const pkg = await prisma.package.findFirst({
+                where: { user_id: user.id },
+                include: { tracking_events: true },
+            });
+            expect(pkg.carrier).to.equal('FEDEX');
+            expect(pkg.last_checked_at).to.not.equal(null);
+            expect(pkg.tracking_events.length).to.be.greaterThan(0);
+        });
+
+        it('does not call FedEx for UPS-classified packages', async () => {
+            const user = await seedUser();
+            const conn = await seedConnection(user.id);
+            stubGmail({
+                messages: ['m1'],
+                getByIds: {
+                    m1: plainTextMessage('Your UPS tracking number is 1Z9999W99999999999'),
+                },
+            });
+            const fetchStub = stubCarrierFetch(fedexAdapter, fixtures.FEDEX_DELIVERED);
+
+            const result = await syncOneConnection(conn);
+
+            expect(result.imported).to.equal(1);
+            expect(fetchStub.called).to.equal(false);
+            const pkg = await prisma.package.findFirst({
+                where: { user_id: user.id },
+                include: { tracking_events: true },
+            });
+            expect(pkg.carrier).to.equal('UPS');
+            expect(pkg.last_checked_at).to.equal(null);
+            expect(pkg.tracking_events.length).to.equal(0);
+        });
+
+        it('continues importing when FedEx hydration throws AdapterFetchError', async () => {
+            const user = await seedUser();
+            const conn = await seedConnection(user.id);
+            stubGmail({
+                messages: ['m1'],
+                getByIds: {
+                    m1: plainTextMessage('Your FedEx tracking number is 122816215025810'),
+                },
+            });
+            stubCarrierFetchError(fedexAdapter, 'carrier_unavailable');
+
+            const result = await syncOneConnection(conn);
+
+            expect(result.imported).to.equal(1);
+            const pkg = await prisma.package.findFirst({
+                where: { user_id: user.id },
+                include: { tracking_events: true },
+            });
+            expect(pkg.carrier).to.equal('FEDEX');
+            expect(pkg.last_checked_at).to.equal(null);
+            expect(pkg.tracking_events.length).to.equal(0);
+        });
     });
 });
 
