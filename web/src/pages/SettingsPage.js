@@ -20,9 +20,10 @@ import { useEffect, useRef, useState } from 'react';
 import { Container, Row, Col, Nav, Alert } from 'react-bootstrap';
 import { Routes, Route, Navigate, useSearchParams, NavLink } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
-import { fetchConnectionStatus } from '../store/gmailSlice';
+import { fetchConnectionStatus, runSync } from '../store/gmailSlice';
+import { fetchPackages } from '../store/packagesSlice';
 import { pushToast } from '../store/uiSlice';
-import ConnectionsTab from '../components/settings/ConnectionsTab';
+import ConnectionsTab, { syncToastForResponse } from '../components/settings/ConnectionsTab';
 import HiddenTab from '../components/settings/HiddenTab';
 import ExclusionsTab from '../components/settings/ExclusionsTab';
 import AccountTab from '../components/settings/AccountTab';
@@ -82,6 +83,27 @@ export default function SettingsPage() {
         dispatch(pushToast({ variant: 'success', message: 'Gmail connected.' }));
       }
       dispatch(fetchConnectionStatus());
+
+      const connectionId = searchParams.get('connection_id');
+      const email = searchParams.get('email');
+      if (connectionId) {
+        dispatch(runSync({ connection_id: connectionId }))
+          .unwrap()
+          .then((data) => {
+            const syncResult = data.syncs[0];
+            dispatch(pushToast(syncToastForResponse(syncResult, email || 'your inbox')));
+            dispatch(fetchPackages());
+          })
+          .catch(() => {
+            dispatch(
+              pushToast({
+                variant: 'danger',
+                message: 'Auto-sync after connecting failed. Use Sync now to retry.',
+              })
+            );
+          });
+      }
+
       setSearchParams({});
       return;
     }

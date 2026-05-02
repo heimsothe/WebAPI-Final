@@ -13,15 +13,25 @@ unrecognized-param case verifies no toast or alert fires.
  */
 
 import { useEffect } from 'react';
+import { rest } from 'msw';
 import { screen, waitFor } from '@testing-library/react';
 import { Routes, Route, useLocation } from 'react-router-dom';
 import { renderWithProviders } from '../../test-utils/renderWithProviders';
+import { server } from '../../test-utils/handlers/server';
 import gmailReducer from '../../store/gmailSlice';
 import uiReducer from '../../store/uiSlice';
 import userReducer from '../../store/userSlice';
+import packagesReducer from '../../store/packagesSlice';
 import SettingsPage from '../../pages/SettingsPage';
 
-const reducer = { user: userReducer, gmail: gmailReducer, ui: uiReducer };
+const BASE = process.env.REACT_APP_API_BASE_URL;
+
+const reducer = {
+  user: userReducer,
+  gmail: gmailReducer,
+  ui: uiReducer,
+  packages: packagesReducer,
+};
 
 const signedInState = (gmailOverrides = {}) => ({
   user: {
@@ -136,5 +146,72 @@ describe('SettingsPage OAuth bounce-back', () => {
     await screen.findByRole('heading', { name: /connected google accounts/i });
     expect(store.getState().ui.toasts).toHaveLength(0);
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+});
+
+describe('SettingsPage auto-sync after connect', () => {
+  it('dispatches runSync with connection_id and pushes the sync result toast', async () => {
+    server.use(
+      rest.post(`${BASE}/api/gmail/sync`, (req, res, ctx) =>
+        res(
+          ctx.json({
+            success: true,
+            data: {
+              syncs: [
+                {
+                  connection_id: '42',
+                  connected_email: 'me@example.com',
+                  skipped: false,
+                  imported: 2,
+                  scanned: 47,
+                  started_at: new Date().toISOString(),
+                  completed_at: new Date().toISOString(),
+                  error: null,
+                },
+              ],
+            },
+          })
+        )
+      )
+    );
+    const { store } = renderAtSearch('?gmail=connected&connection_id=42&email=me%40example.com');
+
+    // First the connect-success toast lands synchronously:
+    await waitFor(() => {
+      const toasts = store.getState().ui.toasts;
+      expect(toasts.length).toBeGreaterThanOrEqual(1);
+      expect(toasts[0].variant).toBe('success');
+      expect(toasts[0].message).toMatch(/gmail connected/i);
+    });
+
+    // Then the auto-sync result toast lands after runSync resolves:
+    await waitFor(() => {
+      const toasts = store.getState().ui.toasts;
+      expect(toasts).toHaveLength(2);
+      expect(toasts[1].variant).toBe('success');
+      expect(toasts[1].message).toMatch(/added 2 packages from 47 emails/i);
+    });
+  });
+
+  it('pushes a fallback toast when auto-sync rejects', async () => {
+    server.use(
+      rest.post(`${BASE}/api/gmail/sync`, (req, res, ctx) =>
+        res(
+          ctx.status(500),
+          ctx.json({
+            success: false,
+            error: { code: 'INTERNAL', message: 'boom' },
+          })
+        )
+      )
+    );
+    const { store } = renderAtSearch('?gmail=connected&connection_id=42&email=me%40example.com');
+
+    await waitFor(() => {
+      const toasts = store.getState().ui.toasts;
+      expect(toasts).toHaveLength(2);
+      expect(toasts[1].variant).toBe('danger');
+      expect(toasts[1].message).toMatch(/auto-sync after connecting failed/i);
+    });
   });
 });
