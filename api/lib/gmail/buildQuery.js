@@ -12,8 +12,8 @@ look-back (newer_than:Nd) for first-time sync.
  */
 
 const SUBJECT_KEYWORDS = [
-    'package', 'delivery', 'tracking', 'shipped', 'shipment',
-    '"on the way"', 'arrive', 'arriving',
+    'package', 'delivery', 'delivered', 'tracking', 'shipped', 'shipment',
+    '"on the way"', 'arrive', 'arriving', 'arrived', 'pickup', '"picked up"',
 ];
 
 function buildQuery({ lastSyncAt, firstSyncWindowDays }) {

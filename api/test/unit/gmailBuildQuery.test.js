@@ -34,4 +34,15 @@ describe('buildQuery', () => {
             expect(q).to.include(kw);
         }
     });
+
+    it('matches past-tense delivered, pickup, arrived, and "picked up" subjects', () => {
+        // Regression: Gmail's subject: operator does not stem, so "delivery"
+        // does not match "delivered". Real test inboxes routinely use these
+        // past-tense and pickup phrasings.
+        const q = buildQuery({ lastSyncAt: null, firstSyncWindowDays: 90 });
+        expect(q).to.include('delivered');
+        expect(q).to.include('pickup');
+        expect(q).to.include('arrived');
+        expect(q).to.include('"picked up"');
+    });
 });
