@@ -53,6 +53,16 @@ const STATUS_FILTERS = [
   { id: 'exc', label: 'Exception', match: (p) => p.latest_event?.status === 'EXCEPTION' },
 ];
 
+function emptyFilterCopy(query, filterId) {
+  const trimmed = query.trim();
+  const filter = STATUS_FILTERS.find((f) => f.id === filterId) || STATUS_FILTERS[0];
+  const statusActive = filter.id !== 'all';
+  if (trimmed && statusActive) return `No packages match "${trimmed}" with status ${filter.label}.`;
+  if (trimmed) return `No packages match "${trimmed}".`;
+  if (statusActive) return `No packages with status ${filter.label}.`;
+  return 'No packages match the current filter.';
+}
+
 export default function DashboardPage() {
   const dispatch = useDispatch();
   const navigate = useNavigate();
@@ -176,7 +186,7 @@ export default function DashboardPage() {
           ]}
         />
       ) : sortedAndFiltered.length === 0 ? (
-        <p className="text-muted">No packages match {`"${query}"`}.</p>
+        <p className="text-muted">{emptyFilterCopy(query, filterId)}</p>
       ) : (
         <PackagesTable packages={sortedAndFiltered} onHide={handleHide} onDelete={handleDelete} />
       )}

@@ -204,6 +204,85 @@ describe('DashboardPage', () => {
     expect(screen.queryByText('In flight')).not.toBeInTheDocument();
   });
 
+  describe('empty-filter copy (F-dashboard-1)', () => {
+    it('shows status-only copy when the filter excludes every package and search is empty', async () => {
+      server.use(
+        rest.get(`${BASE}/api/packages`, (req, res, ctx) =>
+          res(
+            ctx.json({
+              success: true,
+              data: [
+                makePackage({
+                  id: '1',
+                  nickname: 'Sole',
+                  latest_event: makeEvent({ status: 'IN_TRANSIT' }),
+                }),
+              ],
+            })
+          )
+        )
+      );
+      const { user } = renderWithProviders(<DashboardPage />, {
+        reducer,
+        preloadedState: signedInState(),
+      });
+      await screen.findByText('Sole');
+      await user.click(screen.getByRole('radio', { name: /^exception$/i }));
+      // The bug: copy used to read `No packages match "".` regardless of filter.
+      // Fixed copy mentions the active status filter label, not an empty search query.
+      expect(screen.getByText(/no packages with status exception/i)).toBeInTheDocument();
+      expect(screen.queryByText(/no packages match ""/i)).not.toBeInTheDocument();
+    });
+
+    it('shows search-only copy when search has a value and filter is All', async () => {
+      server.use(
+        rest.get(`${BASE}/api/packages`, (req, res, ctx) =>
+          res(
+            ctx.json({
+              success: true,
+              data: [makePackage({ id: '1', nickname: 'Mug', latest_event: makeEvent() })],
+            })
+          )
+        )
+      );
+      const { user } = renderWithProviders(<DashboardPage />, {
+        reducer,
+        preloadedState: signedInState(),
+      });
+      await screen.findByText('Mug');
+      await user.type(screen.getByPlaceholderText(/search/i), 'zzzzz');
+      expect(screen.getByText(/no packages match "zzzzz"/i)).toBeInTheDocument();
+    });
+
+    it('mentions both filter and search when both narrow to zero', async () => {
+      server.use(
+        rest.get(`${BASE}/api/packages`, (req, res, ctx) =>
+          res(
+            ctx.json({
+              success: true,
+              data: [
+                makePackage({
+                  id: '1',
+                  nickname: 'Mug',
+                  latest_event: makeEvent({ status: 'IN_TRANSIT' }),
+                }),
+              ],
+            })
+          )
+        )
+      );
+      const { user } = renderWithProviders(<DashboardPage />, {
+        reducer,
+        preloadedState: signedInState(),
+      });
+      await screen.findByText('Mug');
+      await user.click(screen.getByRole('radio', { name: /^exception$/i }));
+      await user.type(screen.getByPlaceholderText(/search/i), 'mug');
+      const text = screen.getByText(/no packages match "mug" with status exception/i);
+      expect(text).toBeInTheDocument();
+    });
+  });
+
   it('the row link points at /packages/:id', async () => {
     server.use(
       rest.get(`${BASE}/api/packages`, (req, res, ctx) =>
