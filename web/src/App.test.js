@@ -18,6 +18,7 @@ import userReducer from './store/userSlice';
 import packagesReducer from './store/packagesSlice';
 import uiReducer from './store/uiSlice';
 import gmailReducer from './store/gmailSlice';
+import exclusionsReducer from './store/exclusionsSlice';
 import { renderWithProviders } from './test-utils/renderWithProviders';
 
 const SIGNED_IN = {
@@ -44,7 +45,13 @@ const SIGNED_OUT = {
 function renderApp(route, userState) {
   return renderWithProviders(<App />, {
     route,
-    reducer: { user: userReducer, packages: packagesReducer, ui: uiReducer, gmail: gmailReducer },
+    reducer: {
+      user: userReducer,
+      packages: packagesReducer,
+      ui: uiReducer,
+      gmail: gmailReducer,
+      exclusions: exclusionsReducer,
+    },
     preloadedState: {
       user: userState,
       ui: { toasts: [] },
@@ -60,6 +67,7 @@ function renderApp(route, userState) {
         lastSyncResult: null,
         disconnectingIds: [],
       },
+      exclusions: { items: [], status: 'idle', error: null },
     },
   });
 }

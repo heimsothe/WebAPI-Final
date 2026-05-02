@@ -6,10 +6,10 @@
 - Class: CSCI 3916
 
 Description: Redux store composition. Slice 3 added packagesReducer and
-uiReducer. Slice 5 adds gmailReducer. The ui.toasts entries can carry
-an onClick function, which is non-serializable; serializableCheck
-ignores the toast path so the dev warning does not fire on every
-Hide-undo push.
+uiReducer. Slice 5 added gmailReducer. Slice 6 adds exclusionsReducer.
+The ui.toasts entries can carry an onClick function, which is
+non-serializable; serializableCheck ignores the toast path so the dev
+warning does not fire on every Hide-undo push.
  */
 
 import { configureStore } from '@reduxjs/toolkit';
@@ -18,6 +18,7 @@ import userReducer from './userSlice';
 import packagesReducer from './packagesSlice';
 import uiReducer from './uiSlice';
 import gmailReducer from './gmailSlice';
+import exclusionsReducer from './exclusionsSlice';
 
 const middleware = (getDefaultMiddleware) => {
   const base = getDefaultMiddleware({
@@ -37,6 +38,7 @@ export const store = configureStore({
     packages: packagesReducer,
     ui: uiReducer,
     gmail: gmailReducer,
+    exclusions: exclusionsReducer,
   },
   middleware,
 });
