@@ -196,7 +196,8 @@ router.delete('/:id', asyncHandler(async (req, res) => {
     res.status(204).end();
 }));
 
-const REFRESH_COOLDOWN_MS = 5 * 60 * 1000;
+// Demo cap: 10s for live testing. Restore to 5 * 60 * 1000 before production use.
+const REFRESH_COOLDOWN_MS = 10 * 1000;
 const REFRESH_COOLDOWN_SECONDS = REFRESH_COOLDOWN_MS / 1000;
 
 router.post('/refresh-all', asyncHandler(async (req, res) => {

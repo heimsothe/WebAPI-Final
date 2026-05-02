@@ -56,7 +56,7 @@ describe('POST /api/packages/:id/refresh', () => {
         // Backdate last_checked_at to bypass the cooldown for this test.
         await prisma.package.update({
             where: { id: pkg.id },
-            data: { last_checked_at: new Date(Date.now() - 6 * 60 * 1000) },
+            data: { last_checked_at: new Date(Date.now() - 30 * 1000) },
         });
 
         const r2 = await chai.request(app)
@@ -66,12 +66,12 @@ describe('POST /api/packages/:id/refresh', () => {
         r2.body.data.refresh.inserted_event_count.should.equal(0);
     });
 
-    it('cooldown: second refresh within 5 minutes returns rate_limited skip', async () => {
+    it('cooldown: second refresh within the cooldown window returns rate_limited skip', async () => {
         const pkg = await seedPackage(user.id, { carrier: 'FEDEX', tracking_number: '613746411451' });
-        // Set last_checked_at to 2 minutes ago.
+        // Set last_checked_at to 3 seconds ago (well within the 10s cooldown).
         await prisma.package.update({
             where: { id: pkg.id },
-            data: { last_checked_at: new Date(Date.now() - 2 * 60 * 1000) },
+            data: { last_checked_at: new Date(Date.now() - 3 * 1000) },
         });
         stubCarrierFetch(fedexAdapter, fixtures.FEDEX_DELIVERED);
 
@@ -82,7 +82,7 @@ describe('POST /api/packages/:id/refresh', () => {
         res.status.should.equal(200);
         res.body.data.refresh.skipped.should.equal(true);
         res.body.data.refresh.skip_reason.should.equal('rate_limited');
-        res.body.data.refresh.cooldown_remaining_seconds.should.be.within(150, 200);
+        res.body.data.refresh.cooldown_remaining_seconds.should.be.within(1, 10);
         // FedEx fetch should NOT have been called on a cooldown skip.
         fedexAdapter.fetchRaw.called.should.equal(false);
     });

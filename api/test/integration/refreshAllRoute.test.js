@@ -48,11 +48,11 @@ describe('POST /api/packages/refresh-all', () => {
         res.body.data.skipped.length.should.equal(0);
     });
 
-    it('skip rate_limited: package within 5-minute cooldown', async () => {
+    it('skip rate_limited: package within the cooldown window', async () => {
         const pkg = await seedPackage(user.id, { carrier: 'FEDEX', tracking_number: '122816215025810' });
         await prisma.package.update({
             where: { id: pkg.id },
-            data: { last_checked_at: new Date(Date.now() - 2 * 60 * 1000) },
+            data: { last_checked_at: new Date(Date.now() - 3 * 1000) },
         });
         const fetchStub = stubCarrierFetch(fedexAdapter, fixtures.FEDEX_DELIVERED);
 
@@ -63,7 +63,7 @@ describe('POST /api/packages/refresh-all', () => {
         res.body.data.refreshed.length.should.equal(0);
         res.body.data.skipped.length.should.equal(1);
         res.body.data.skipped[0].skip_reason.should.equal('rate_limited');
-        res.body.data.skipped[0].cooldown_remaining_seconds.should.be.within(150, 200);
+        res.body.data.skipped[0].cooldown_remaining_seconds.should.be.within(1, 10);
         fetchStub.called.should.equal(false);
     });
 

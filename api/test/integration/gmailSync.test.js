@@ -155,7 +155,7 @@ describe('syncOneConnection (integration)', () => {
 
     it('leaves last_sync_at unchanged on early-return failure (rate_limited)', async () => {
         const user = await seedUser();
-        const original = new Date(Date.now() - 60 * 1000);
+        const original = new Date(Date.now() - 3 * 1000);
         const conn = await seedConnection(user.id, { last_sync_at: original });
 
         const result = await syncOneConnection(conn);

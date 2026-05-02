@@ -27,7 +27,8 @@ const { findAllTrackingNumbers } = require('../trackingNumberPatterns');
 const carrierRegistry = require('../carriers/registry');
 const { toEventRow } = require('../carriers/persistEvents');
 
-const MIN_SYNC_INTERVAL_MS = (parseInt(process.env.MIN_SYNC_INTERVAL_MIN, 10) || 5) * 60 * 1000;
+// Demo cap: 10s for live testing. Restore to (parseInt(process.env.MIN_SYNC_INTERVAL_MIN, 10) || 5) * 60 * 1000 before production use.
+const MIN_SYNC_INTERVAL_MS = 10 * 1000;
 const FIRST_SYNC_WINDOW_DAYS = parseInt(process.env.GMAIL_FIRST_SYNC_WINDOW_DAYS, 10) || 90;
 const MAX_PAGES = 10;
 const PAGE_SIZE = 100;
