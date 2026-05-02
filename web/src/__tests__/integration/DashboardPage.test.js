@@ -406,4 +406,69 @@ describe('DashboardPage', () => {
       });
     });
   });
+
+  describe('Track column', () => {
+    it('renders an external-link with carrier-specific aria-label', async () => {
+      server.use(
+        rest.get(`${BASE}/api/packages`, (req, res, ctx) =>
+          res(
+            ctx.json({
+              success: true,
+              data: [
+                makePackage({
+                  id: '1',
+                  tracking_number: '122816215025810',
+                  carrier: 'FEDEX',
+                  tracking_url:
+                    'https://www.fedex.com/wtrk/track/?tracknumbers=122816215025810',
+                }),
+              ],
+            })
+          )
+        )
+      );
+      renderWithProviders(<DashboardPage />, {
+        reducer,
+        preloadedState: signedInState(),
+      });
+      const link = await screen.findByRole('link', {
+        name: /open on fedex tracking site/i,
+      });
+      expect(link).toHaveAttribute(
+        'href',
+        'https://www.fedex.com/wtrk/track/?tracknumbers=122816215025810'
+      );
+      expect(link).toHaveAttribute('target', '_blank');
+      expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+      expect(within(link).getByText('Track')).toBeInTheDocument();
+    });
+
+    it('renders no link cell when tracking_url is null', async () => {
+      server.use(
+        rest.get(`${BASE}/api/packages`, (req, res, ctx) =>
+          res(
+            ctx.json({
+              success: true,
+              data: [
+                makePackage({
+                  id: '1',
+                  tracking_number: '122816215025810',
+                  carrier: 'FEDEX',
+                  tracking_url: null,
+                }),
+              ],
+            })
+          )
+        )
+      );
+      renderWithProviders(<DashboardPage />, {
+        reducer,
+        preloadedState: signedInState(),
+      });
+      await screen.findByText('122816215025810');
+      expect(
+        screen.queryByRole('link', { name: /open on .* tracking site/i })
+      ).not.toBeInTheDocument();
+    });
+  });
 });

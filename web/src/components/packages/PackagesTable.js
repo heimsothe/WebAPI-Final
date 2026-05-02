@@ -31,6 +31,7 @@ export default function PackagesTable({ packages, onHide, onDelete }) {
           <th>Status</th>
           <th>Location and note</th>
           <th>Updated</th>
+          <th>Track</th>
           <th className="text-end">Actions</th>
         </tr>
       </thead>

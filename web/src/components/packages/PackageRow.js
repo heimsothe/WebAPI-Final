@@ -17,10 +17,11 @@ default so kebab clicks do not also trigger row navigation.
 
 import { Dropdown } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
-import { FaEllipsisV } from 'react-icons/fa';
+import { FaEllipsisV, FaExternalLinkAlt } from 'react-icons/fa';
 import StatusChip from './StatusChip';
 import CarrierBadge from './CarrierBadge';
 import { relTime } from '../../lib/relTime';
+import { carrierDisplay } from '../../lib/carrierDisplay';
 
 export default function PackageRow({ pkg, onHide, onDelete }) {
   const display = pkg.nickname || `Package #${pkg.tracking_number.slice(-6)}`;
@@ -49,6 +50,19 @@ export default function PackageRow({ pkg, onHide, onDelete }) {
       </td>
       <td>
         <small className="text-muted">{relTime(updated)}</small>
+      </td>
+      <td>
+        {pkg.tracking_url ? (
+          <a
+            href={pkg.tracking_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-decoration-none"
+            aria-label={`Open on ${carrierDisplay(pkg.carrier)} tracking site`}
+          >
+            <FaExternalLinkAlt className="me-1" /> Track
+          </a>
+        ) : null}
       </td>
       <td className="text-end">
         {/* popperConfig.strategy='fixed' floats the menu above the table-responsive
