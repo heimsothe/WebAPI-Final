@@ -219,4 +219,53 @@ describe('DashboardPage', () => {
     const link = await screen.findByRole('link', { name: /linked/i });
     expect(link).toHaveAttribute('href', '/packages/42');
   });
+
+  describe('Add Package modal wiring', () => {
+    it('clicking the top-row Add package button opens the modal', async () => {
+      server.use(
+        rest.get(`${BASE}/api/packages`, (req, res, ctx) =>
+          res(
+            ctx.json({
+              success: true,
+              data: [
+                makePackage({
+                  id: '7',
+                  nickname: 'Existing',
+                  latest_event: makeEvent({ status: 'IN_TRANSIT' }),
+                }),
+              ],
+            })
+          )
+        )
+      );
+      const { user } = renderWithProviders(<DashboardPage />, {
+        reducer,
+        preloadedState: signedInState(),
+      });
+      await screen.findByText('Existing');
+      // No modal open initially.
+      expect(screen.queryByRole('heading', { name: /^add package$/i })).not.toBeInTheDocument();
+      // Click the top-row "Add package" button (there is only one when the list is non-empty).
+      await user.click(screen.getByRole('button', { name: /add package/i }));
+      // Modal heading is now in the DOM.
+      expect(await screen.findByRole('heading', { name: /^add package$/i })).toBeInTheDocument();
+    });
+
+    it('clicking the empty-state Add package CTA opens the modal', async () => {
+      server.use(
+        rest.get(`${BASE}/api/packages`, (req, res, ctx) =>
+          res(ctx.json({ success: true, data: [] }))
+        )
+      );
+      const { user } = renderWithProviders(<DashboardPage />, {
+        reducer,
+        preloadedState: signedInState(),
+      });
+      await screen.findByText(/no packages yet/i);
+      // Two "Add package" buttons exist (top-row + empty-state CTA); click the first.
+      const buttons = screen.getAllByRole('button', { name: /add package/i });
+      await user.click(buttons[0]);
+      expect(await screen.findByRole('heading', { name: /^add package$/i })).toBeInTheDocument();
+    });
+  });
 });

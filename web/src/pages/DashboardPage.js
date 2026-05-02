@@ -8,9 +8,13 @@
 Description: The signed-in user's home page. Lists active packages with
 priority sort, search, status filter, and per-row kebab actions (View,
 Hide, Delete). Hide is one click with an undo toast; Delete opens a
-ConfirmModal before dispatching. Slice 4 wires the Add Package modal;
-Slice 5 wires Sync. Until then, "Add package" is disabled and "Sync
-Gmail" links to the placeholder /sync route.
+ConfirmModal before dispatching. Slice 4 wired the Add Package modal:
+clicking either the top-row "Add package" button or the empty-state
+CTA toggles isAddOpen, which mounts <AddPackageModal>. The modal owns
+its form state and the createPackage thunk; on success it pushes a
+toast and calls onClose, which dispatches fetchPackages back here for
+a fresh list. Slice 5 wires Sync; until then, "Sync Gmail" links to
+the placeholder /sync route.
  */
 
 import { useEffect, useMemo, useState } from 'react';
@@ -31,6 +35,7 @@ import { pushToast } from '../store/uiSlice';
 import { comparePackages } from '../lib/comparePackages';
 import { carrierDisplay } from '../lib/carrierDisplay';
 import PackagesTable from '../components/packages/PackagesTable';
+import AddPackageModal from '../components/packages/AddPackageModal';
 import EmptyState from '../components/shared/EmptyState';
 import ErrorAlert from '../components/shared/ErrorAlert';
 import Spinner from '../components/shared/Spinner';
@@ -55,6 +60,7 @@ export default function DashboardPage() {
   const [query, setQuery] = useState('');
   const [filterId, setFilterId] = useState('all');
   const [pendingDelete, setPendingDelete] = useState(null);
+  const [isAddOpen, setIsAddOpen] = useState(false);
 
   useEffect(() => {
     dispatch(fetchPackages());
@@ -121,7 +127,7 @@ export default function DashboardPage() {
           <Link to="/sync" className="btn btn-outline-secondary me-2">
             Sync Gmail
           </Link>
-          <Button variant="primary" disabled>
+          <Button variant="primary" onClick={() => setIsAddOpen(true)}>
             Add package
           </Button>
         </Col>
@@ -165,7 +171,7 @@ export default function DashboardPage() {
           title="No packages yet"
           body="Add a package manually, or sync your Gmail inbox to find tracking numbers."
           ctas={[
-            { label: 'Add package', onClick: () => {}, disabled: true },
+            { label: 'Add package', onClick: () => setIsAddOpen(true) },
             { label: 'Sync Gmail', variant: 'outline-primary', onClick: () => navigate('/sync') },
           ]}
         />
@@ -183,6 +189,8 @@ export default function DashboardPage() {
         onConfirm={confirmDelete}
         onCancel={() => setPendingDelete(null)}
       />
+
+      <AddPackageModal show={isAddOpen} onClose={() => setIsAddOpen(false)} />
     </Container>
   );
 }
