@@ -16,6 +16,7 @@ import { screen, waitFor, within } from '@testing-library/react';
 import { renderWithProviders } from '../../test-utils/renderWithProviders';
 import { server } from '../../test-utils/handlers/server';
 import { makePackage, makeEvent } from '../../test-utils/factories';
+import { errorVariants as packagesErrorVariants } from '../../test-utils/handlers/packages';
 import packagesReducer from '../../store/packagesSlice';
 import uiReducer from '../../store/uiSlice';
 import userReducer from '../../store/userSlice';
@@ -345,6 +346,64 @@ describe('DashboardPage', () => {
       const buttons = screen.getAllByRole('button', { name: /add package/i });
       await user.click(buttons[0]);
       expect(await screen.findByRole('heading', { name: /^add package$/i })).toBeInTheDocument();
+    });
+  });
+
+  describe('Refresh status button', () => {
+    it('refreshes all packages and shows a success toast', async () => {
+      server.use(
+        rest.get(`${BASE}/api/packages`, (req, res, ctx) =>
+          res(
+            ctx.json({
+              success: true,
+              data: [
+                makePackage({ id: '1', tracking_number: '122816215025810', carrier: 'FEDEX' }),
+              ],
+            })
+          )
+        ),
+        packagesErrorVariants.refreshAllAllSucceeded
+      );
+      const { user, store } = renderWithProviders(<DashboardPage />, {
+        reducer,
+        preloadedState: signedInState(),
+      });
+      await screen.findByText('122816215025810');
+
+      await user.click(screen.getByRole('button', { name: /refresh status/i }));
+
+      await waitFor(() => {
+        const [t] = store.getState().ui.toasts;
+        expect(t).toMatchObject({ variant: 'success', message: 'Refreshed 2 packages.' });
+      });
+    });
+
+    it('shows a danger toast when refresh fails', async () => {
+      server.use(
+        rest.get(`${BASE}/api/packages`, (req, res, ctx) =>
+          res(
+            ctx.json({
+              success: true,
+              data: [
+                makePackage({ id: '1', tracking_number: '122816215025810', carrier: 'FEDEX' }),
+              ],
+            })
+          )
+        ),
+        packagesErrorVariants.refreshAllFailed
+      );
+      const { user, store } = renderWithProviders(<DashboardPage />, {
+        reducer,
+        preloadedState: signedInState(),
+      });
+      await screen.findByText('122816215025810');
+
+      await user.click(screen.getByRole('button', { name: /refresh status/i }));
+
+      await waitFor(() => {
+        const [t] = store.getState().ui.toasts;
+        expect(t).toMatchObject({ variant: 'danger', message: 'Refresh failed. Try again.' });
+      });
     });
   });
 });

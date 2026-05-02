@@ -30,7 +30,7 @@ import {
 } from 'react-bootstrap';
 import { Link, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
-import { fetchPackages, patchPackage, deletePackage } from '../store/packagesSlice';
+import { fetchPackages, patchPackage, deletePackage, refreshAllPackages } from '../store/packagesSlice';
 import { pushToast } from '../store/uiSlice';
 import { comparePackages } from '../lib/comparePackages';
 import { carrierDisplay } from '../lib/carrierDisplay';
@@ -63,10 +63,35 @@ function emptyFilterCopy(query, filterId) {
   return 'No packages match the current filter.';
 }
 
+export function refreshAllToastFromResponse({ total, refreshed, skipped }) {
+  if (total === 0) return { variant: 'secondary', message: 'No packages to refresh.' };
+  if (refreshed.length === total) {
+    return {
+      variant: 'success',
+      message: `Refreshed ${total} ${total === 1 ? 'package' : 'packages'}.`,
+    };
+  }
+  const counts = skipped.reduce((acc, s) => {
+    acc[s.skip_reason] = (acc[s.skip_reason] || 0) + 1;
+    return acc;
+  }, {});
+  const parts = [];
+  if (counts.rate_limited)        parts.push(`${counts.rate_limited} cooling down`);
+  if (counts.no_adapter)          parts.push(`${counts.no_adapter} from carriers we do not track`);
+  if (counts.not_found)           parts.push(`${counts.not_found} not recognized`);
+  if (counts.carrier_unavailable) parts.push(`${counts.carrier_unavailable} carrier unavailable`);
+  if (counts.auth_failed)         parts.push(`${counts.auth_failed} auth failed`);
+  if (counts.bad_request)         parts.push(`${counts.bad_request} bad request`);
+  return {
+    variant: refreshed.length > 0 ? 'secondary' : 'warning',
+    message: `Refreshed ${refreshed.length} of ${total}. ${parts.join(', ')}.`,
+  };
+}
+
 export default function DashboardPage() {
   const dispatch = useDispatch();
   const navigate = useNavigate();
-  const { items, listStatus, listError } = useSelector((s) => s.packages);
+  const { items, listStatus, listError, refreshingAllStatus } = useSelector((s) => s.packages);
   const [query, setQuery] = useState('');
   const [filterId, setFilterId] = useState('all');
   const [pendingDelete, setPendingDelete] = useState(null);
@@ -122,6 +147,18 @@ export default function DashboardPage() {
     });
   };
 
+  const handleRefreshAll = () => {
+    dispatch(refreshAllPackages())
+      .unwrap()
+      .then((data) => {
+        dispatch(pushToast(refreshAllToastFromResponse(data)));
+        dispatch(fetchPackages());
+      })
+      .catch(() => {
+        dispatch(pushToast({ variant: 'danger', message: 'Refresh failed. Try again.' }));
+      });
+  };
+
   return (
     <Container fluid className="px-0">
       <Row className="align-items-center mb-3">
@@ -137,6 +174,14 @@ export default function DashboardPage() {
           <Link to="/sync" className="btn btn-outline-secondary me-2">
             Sync Gmail
           </Link>
+          <Button
+            variant="outline-secondary"
+            className="me-2"
+            onClick={handleRefreshAll}
+            disabled={refreshingAllStatus === 'loading'}
+          >
+            {refreshingAllStatus === 'loading' ? <Spinner size="sm" /> : 'Refresh status'}
+          </Button>
           <Button variant="primary" onClick={() => setIsAddOpen(true)}>
             Add package
           </Button>
