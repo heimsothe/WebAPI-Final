@@ -25,6 +25,7 @@ import { pushToast } from '../store/uiSlice';
 import ConnectionsTab from '../components/settings/ConnectionsTab';
 import ComingInSlice6Placeholder from '../components/settings/ComingInSlice6Placeholder';
 import HiddenTab from '../components/settings/HiddenTab';
+import ExclusionsTab from '../components/settings/ExclusionsTab';
 
 const ERROR_ALERTS = {
   consent_denied: {
@@ -129,7 +130,7 @@ export default function SettingsPage() {
             <Route index element={<Navigate to="connections" replace />} />
             <Route path="connections" element={<ConnectionsTab />} />
             <Route path="hidden" element={<HiddenTab />} />
-            <Route path="exclusions" element={<ComingInSlice6Placeholder title="Exclusions" />} />
+            <Route path="exclusions" element={<ExclusionsTab />} />
             <Route path="account" element={<ComingInSlice6Placeholder title="Account" />} />
           </Routes>
         </Col>
