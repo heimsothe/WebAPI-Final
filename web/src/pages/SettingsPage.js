@@ -8,7 +8,7 @@
 Description: Settings shell. Vertical Nav on the left, nested route
 content on the right. Mounts ConnectionsTab on /settings (and on
 /settings/connections); routes /settings/{hidden,exclusions,account}
-to a Slice 6 placeholder card. The OAuth callback bounce-back is
+to their respective Slice 6 components. The OAuth callback bounce-back is
 handled in a useEffect that reads useSearchParams: each recognized
 gmail or gmail_error / warning value fires the matching toast or
 alert and scrubs the URL via setSearchParams({}). React 18 StrictMode
@@ -23,9 +23,9 @@ import { useDispatch } from 'react-redux';
 import { fetchConnectionStatus } from '../store/gmailSlice';
 import { pushToast } from '../store/uiSlice';
 import ConnectionsTab from '../components/settings/ConnectionsTab';
-import ComingInSlice6Placeholder from '../components/settings/ComingInSlice6Placeholder';
 import HiddenTab from '../components/settings/HiddenTab';
 import ExclusionsTab from '../components/settings/ExclusionsTab';
+import AccountTab from '../components/settings/AccountTab';
 
 const ERROR_ALERTS = {
   consent_denied: {
@@ -131,7 +131,7 @@ export default function SettingsPage() {
             <Route path="connections" element={<ConnectionsTab />} />
             <Route path="hidden" element={<HiddenTab />} />
             <Route path="exclusions" element={<ExclusionsTab />} />
-            <Route path="account" element={<ComingInSlice6Placeholder title="Account" />} />
+            <Route path="account" element={<AccountTab />} />
           </Routes>
         </Col>
       </Row>
