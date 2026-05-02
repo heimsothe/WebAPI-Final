@@ -40,9 +40,18 @@ function formatLocation(loc) {
 }
 
 function toNormalizedEvent(scanEvent) {
+    let status = mapStatus(scanEvent.derivedStatusCode);
+    // FedEx sometimes returns eventType "OD" (Out for Delivery) with a
+    // rollup derivedStatusCode that hasn't advanced past "IT". Trust the
+    // granular signal so the UI badge matches the event description.
+    // carrierRawStatus stays as the rollup to preserve the unique-key
+    // dedup behavior on re-fetches.
+    if (scanEvent.eventType === 'OD' && status !== 'DELIVERED') {
+        status = 'OUT_FOR_DELIVERY';
+    }
     return {
         eventTime: new Date(scanEvent.date),
-        status: mapStatus(scanEvent.derivedStatusCode),
+        status,
         carrierRawStatus: scanEvent.derivedStatusCode || '',
         description: scanEvent.eventDescription || scanEvent.derivedStatus || '',
         location: formatLocation(scanEvent.scanLocation),

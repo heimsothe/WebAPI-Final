@@ -140,6 +140,19 @@ describe('lib/carriers/fedex/adapter.normalize', () => {
         chai.expect(fedex.normalize(fake).events[0].location).to.equal(null);
     });
 
+    it('treats eventType "OD" as OUT_FOR_DELIVERY when derivedStatusCode lags behind', () => {
+        // FEDEX_OUT_FOR_DELIVERY (231300687629630) is a sandbox virtual
+        // response whose latest scan has eventType "OD" but a stale rollup
+        // derivedStatusCode "IT". Trust the granular event code so the UI
+        // badge matches the description text ("On FedEx vehicle for delivery").
+        const out = fedex.normalize(fixtures.FEDEX_OUT_FOR_DELIVERY);
+        out.found.should.equal(true);
+        out.currentStatus.should.equal('OUT_FOR_DELIVERY');
+        out.events[0].status.should.equal('OUT_FOR_DELIVERY');
+        // Raw rollup is preserved for dedup-key stability across re-fetches.
+        out.events[0].carrierRawStatus.should.equal('IT');
+    });
+
     it('top-level alert NOTFOUND returns found:false', () => {
         const fake = {
             output: {
