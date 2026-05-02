@@ -17,6 +17,7 @@ import App from './App';
 import userReducer from './store/userSlice';
 import packagesReducer from './store/packagesSlice';
 import uiReducer from './store/uiSlice';
+import gmailReducer from './store/gmailSlice';
 import { renderWithProviders } from './test-utils/renderWithProviders';
 
 const SIGNED_IN = {
@@ -43,8 +44,23 @@ const SIGNED_OUT = {
 function renderApp(route, userState) {
   return renderWithProviders(<App />, {
     route,
-    reducer: { user: userReducer, packages: packagesReducer, ui: uiReducer },
-    preloadedState: { user: userState, ui: { toasts: [] } },
+    reducer: { user: userReducer, packages: packagesReducer, ui: uiReducer, gmail: gmailReducer },
+    preloadedState: {
+      user: userState,
+      ui: { toasts: [] },
+      gmail: {
+        connections: [],
+        status: 'idle',
+        error: null,
+        connectStatus: 'idle',
+        connectError: null,
+        syncingIds: [],
+        globalSyncStatus: 'idle',
+        globalSyncError: null,
+        lastSyncResult: null,
+        disconnectingIds: [],
+      },
+    },
   });
 }
 
@@ -89,9 +105,13 @@ describe('App slice 2 routing', () => {
     expect(screen.getByRole('status', { name: 'Loading' })).toBeInTheDocument();
   });
 
-  it('renders the sync placeholder at /sync when signed in', () => {
+  it('renders the sync page at /sync when signed in', async () => {
     renderApp('/sync', SIGNED_IN);
-    expect(screen.getByTestId('page-sync')).toBeInTheDocument();
+    // The SyncPage dispatches fetchConnectionStatus on mount; the default MSW
+    // handler returns { connections: [] }, which renders the empty state.
+    expect(
+      await screen.findByText(/connect gmail to scan for tracking numbers/i)
+    ).toBeInTheDocument();
   });
 
   it('renders the settings placeholder at /settings when signed in', () => {

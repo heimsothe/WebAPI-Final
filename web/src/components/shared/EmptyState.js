@@ -6,9 +6,12 @@
 - Class: CSCI 3916
 
 Description: Centered card for "no data" surfaces. Title is required; body
-is optional descriptive copy; ctas is an optional array of { label, onClick,
-variant? } entries rendered as buttons. The dashboard's empty state passes
-two ctas (Add and Sync); the timeline's empty state passes none.
+is optional descriptive copy; ctas is an optional array of CTA objects
+rendered as buttons. Each CTA must have a `label`; all other props are
+spread onto the underlying Bootstrap Button (so callers can pass onClick,
+variant, disabled, as, to, href, etc.). The dashboard's empty state passes
+{label, onClick} CTAs; SyncPage passes {label, as: Link, to, variant} for
+its navigation CTA.
  */
 
 import { Card, Button } from 'react-bootstrap';
@@ -21,16 +24,14 @@ export default function EmptyState({ title, body, ctas = [] }) {
         {body ? <Card.Text className="text-muted">{body}</Card.Text> : null}
         {ctas.length > 0 ? (
           <div className="d-flex justify-content-center gap-2 mt-3">
-            {ctas.map((c) => (
-              <Button
-                key={c.label}
-                variant={c.variant || 'primary'}
-                onClick={c.onClick}
-                disabled={c.disabled}
-              >
-                {c.label}
-              </Button>
-            ))}
+            {ctas.map((cta, i) => {
+              const { label, ...rest } = cta;
+              return (
+                <Button key={i} variant={rest.variant || 'primary'} {...rest}>
+                  {label}
+                </Button>
+              );
+            })}
           </div>
         ) : null}
       </Card.Body>
