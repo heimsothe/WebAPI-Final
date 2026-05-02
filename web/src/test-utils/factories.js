@@ -80,3 +80,27 @@ export function makeExclusion(overrides = {}) {
     ...overrides,
   };
 }
+
+export function makeSyncResult(overrides = {}) {
+  return {
+    connection_id: '1',
+    connected_email: 'test@example.com',
+    skipped: false,
+    imported: 0,
+    scanned: 0,
+    started_at: new Date().toISOString(),
+    completed_at: new Date().toISOString(),
+    ...overrides,
+  };
+}
+
+export function makeSyncSkippedResult(overrides = {}) {
+  return {
+    connection_id: '1',
+    connected_email: 'test@example.com',
+    skipped: true,
+    skip_reason: 'rate_limited',
+    next_eligible_at: new Date(Date.now() + 60_000).toISOString(),
+    ...overrides,
+  };
+}

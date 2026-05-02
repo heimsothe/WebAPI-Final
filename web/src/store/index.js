@@ -5,10 +5,11 @@
 - Assignment: WebAPI-FinalProject
 - Class: CSCI 3916
 
-Description: Redux store composition. Slice 3 adds packagesReducer and
-uiReducer. The ui.toasts entries can carry an onClick function, which is
-non-serializable; serializableCheck ignores the toast path so the dev
-warning does not fire on every Hide-undo push.
+Description: Redux store composition. Slice 3 added packagesReducer and
+uiReducer. Slice 5 adds gmailReducer. The ui.toasts entries can carry
+an onClick function, which is non-serializable; serializableCheck
+ignores the toast path so the dev warning does not fire on every
+Hide-undo push.
  */
 
 import { configureStore } from '@reduxjs/toolkit';
@@ -16,6 +17,7 @@ import { createLogger } from 'redux-logger';
 import userReducer from './userSlice';
 import packagesReducer from './packagesSlice';
 import uiReducer from './uiSlice';
+import gmailReducer from './gmailSlice';
 
 const middleware = (getDefaultMiddleware) => {
   const base = getDefaultMiddleware({
@@ -34,6 +36,7 @@ export const store = configureStore({
     user: userReducer,
     packages: packagesReducer,
     ui: uiReducer,
+    gmail: gmailReducer,
   },
   middleware,
 });
